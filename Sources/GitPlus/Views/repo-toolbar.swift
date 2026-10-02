@@ -65,17 +65,14 @@ struct BranchToolbarButton: View {
 
     var body: some View {
         Button { isPresented.toggle() } label: {
-            // Branch on top, last fetch time below.
-            HStack(spacing: 7) {
-                Image(systemName: "arrow.triangle.branch").frame(width: 16)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(branch).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
-                    Text(fetchedText).font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
-                }
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                Text(branch).font(.system(size: 12, weight: .semibold)).lineLimit(1)
             }
             .padding(.horizontal, 4)
         }
-        .help("Switch, create, merge or delete branches (⌘B)")
+        // Last fetch time lives in the tooltip to keep the button compact.
+        .help("\(fetchedText) · Switch, create, merge or delete branches (⌘B)")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             BranchPickerView(repo: repo, isPresented: $isPresented)
         }
