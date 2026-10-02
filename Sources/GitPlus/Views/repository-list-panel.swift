@@ -79,6 +79,11 @@ struct RepositoryListPanel: View {
                     .onSubmit { commitRename(key) }
                     .onExitCommand { renamingKey = nil }
             } else {
+                // Folder icon sets groups apart from the repository rows below them.
+                Image(systemName: groupID == nil ? "tray.fill" : "folder.fill")
+                    .font(.system(size: 13))
+                    .foregroundStyle(groupID == nil ? Color.secondary : Color.accentColor)
+                    .frame(width: 18)
                 Text(name).font(.system(size: 13, weight: .bold))
                 Text("\(count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 Spacer()
