@@ -7,6 +7,7 @@ struct GroupWorkspaceView: View {
     @Binding var selection: SidebarSelection?
 
     @AppStorage("groupTab") private var tab = 0
+    let title: String
     @State private var activity: [RepoCommit] = []
     @State private var selectedActivity: RepoCommit.ID?
     @State private var isLoading = false
@@ -16,29 +17,38 @@ struct GroupWorkspaceView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ResizableColumn("width.leftPane", initial: 300, range: 240...480) {
-                VStack(spacing: 0) {
-                    PaneTabs(tabs: [("Repositories", repos.count), ("Activity", nil)], selected: tab) { tab = $0 }
-                    if tab == 0 { repoList } else { activityList }
-                }
-                .background(Theme.paneBackground)
+            if tab == 1 {
+                ResizableColumn("width.leftPane", initial: 320, range: 260...520) { activityList }
             }
             main.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .navigationTitle(title)
+        .navigationSubtitle("\(repos.count) repositories")
+        .toolbar { groupToolbar }
         .task(id: revisionKey) { await loadActivity() }
     }
 
-    private var repoList: some View {
-        List(repos) { repo in
-            Button { selection = .repo(repo.id) } label: {
-                RepoRowView(repo: repo, status: store.statuses[repo.id], isBusy: store.busy.contains(repo.id))
-                    .contentShape(Rectangle())
+    @ToolbarContentBuilder private var groupToolbar: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Picker("View", selection: $tab) {
+                Text("Repositories").tag(0)
+                Text("Activity").tag(1)
             }
-            .buttonStyle(.plain)
-            .listRowSeparator(.visible)
-            .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
+            .pickerStyle(.segmented)
         }
-        .listStyle(.plain)
+        ToolbarItemGroup(placement: .primaryAction) {
+            let ids = repos.map(\.id)
+            let busy = ids.contains { store.busy.contains($0) }
+            Button { Task { await store.fetch(ids) } } label: {
+                Label("Fetch All", systemImage: "arrow.triangle.2.circlepath").labelStyle(.titleAndIcon)
+            }
+            .disabled(ids.isEmpty || busy)
+            Button { Task { await store.pull(ids) } } label: {
+                Label("Pull All", systemImage: "arrow.down.circle").labelStyle(.titleAndIcon)
+            }
+            .disabled(ids.isEmpty || busy)
+            .help("Fast-forward every repository in this group")
+        }
     }
 
     private var activityList: some View {

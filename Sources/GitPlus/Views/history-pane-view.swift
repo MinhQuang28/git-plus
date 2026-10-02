@@ -39,7 +39,8 @@ struct HistoryPaneView: View {
         VStack(spacing: 0) {
             compareField
             Divider()
-            if compareFocused && compareBranch == nil {
+            // Suggestions appear only while typing, so an auto-focused field never hides the history.
+            if compareFocused && compareBranch == nil && !compareText.isEmpty {
                 branchSuggestions
             } else {
                 if let compareBranch { compareTabs(compareBranch) } else { viewOptions }
@@ -67,7 +68,7 @@ struct HistoryPaneView: View {
                 TextField("Select Branch to Compare…", text: $compareText)
                     .textFieldStyle(.plain)
                     .focused($compareFocused)
-                    .onExitCommand { compareFocused = false }
+                    .onExitCommand { compareFocused = false; compareText = "" }
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 6)

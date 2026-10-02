@@ -12,17 +12,18 @@ enum Theme {
     }
 
     static let barBackground = dynamic(light: hex(0xf6f8fa), dark: hex(0x1c2128))
-    static let barHover = dynamic(light: hex(0xeaeef2), dark: hex(0x262c33))
+    static let barHover = Color.primary.opacity(0.07)
     static let barText = Color.primary
     static let barSecondaryText = Color.secondary
     static let barDivider = dynamic(light: hex(0xd0d7de), dark: hex(0x30363d))
-    static let rowHover = dynamic(light: hex(0x000000, 0.04), dark: hex(0xffffff, 0.05))
+    static let rowHover = Color.primary.opacity(0.05)
     static let banner = dynamic(light: hex(0xfff8c5), dark: hex(0x3b2e0a))
     static let bannerBorder = dynamic(light: hex(0xd4a72c), dark: hex(0x9e6a03))
 
-    static let paneBackground = dynamic(light: hex(0xffffff), dark: hex(0x22272e))
-    static let headerBackground = dynamic(light: hex(0xf6f8fa), dark: hex(0x2d333b))
-    static let separator = dynamic(light: hex(0xd8dee4), dark: hex(0x30363d))
+    // System colors so panes match the native (Liquid Glass) window chrome.
+    static let paneBackground = Color(nsColor: .windowBackgroundColor)
+    static let headerBackground = Color.primary.opacity(0.045)
+    static let separator = Color(nsColor: .separatorColor)
 
     // Diff colors match GitHub / GitHub Desktop: strong line tint, darker gutter, bright changed words.
     static let addedLine = dynamic(light: hex(0xe6ffec), dark: hex(0x0f3b1d))
@@ -31,11 +32,11 @@ enum Theme {
     static let removedLine = dynamic(light: hex(0xffebe9), dark: hex(0x4a1215))
     static let removedGutter = dynamic(light: hex(0xffd7d5), dark: hex(0x3a0d10))
     static let removedWord = dynamic(light: hex(0xffa8a8), dark: hex(0xb3232d))
-    static let hunkLine = dynamic(light: hex(0xddf4ff), dark: hex(0x2a3038))
-    static let contextLine = dynamic(light: hex(0xffffff), dark: hex(0x24292e))
-    static let gutter = dynamic(light: hex(0xf6f8fa), dark: hex(0x2b3036))
-    static let gutterText = dynamic(light: hex(0x6e7781), dark: hex(0x9da5b4))
-    static let emptySide = dynamic(light: hex(0xf6f8fa), dark: hex(0x1f2328))
+    static let hunkLine = dynamic(light: hex(0xeef5ff), dark: hex(0x1d2633))
+    static let contextLine = Color(nsColor: .textBackgroundColor)
+    static let gutter = Color.primary.opacity(0.035)
+    static let gutterText = Color.secondary
+    static let emptySide = Color.primary.opacity(0.03)
 
     static let modified = dynamic(light: hex(0xb08800), dark: hex(0xd8b64a))
     static let added = dynamic(light: hex(0x28a745), dark: hex(0x3fb950))

@@ -110,10 +110,8 @@ struct ToastView: View {
                 .foregroundStyle(toast.isError ? Theme.deleted : Theme.added)
             Text(toast.message).font(.system(size: 13, weight: .medium)).lineLimit(2)
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Theme.separator))
-        .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .glassEffect(.regular, in: .capsule)
         .padding(.bottom, 20)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }

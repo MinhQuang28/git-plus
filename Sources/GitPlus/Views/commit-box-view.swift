@@ -55,14 +55,13 @@ struct CommitBoxView: View {
             Button(action: commit) {
                 Text(buttonTitle).font(.system(size: 13, weight: .semibold)).frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.glassProminent)
             .controlSize(.large)
             .disabled(!canCommit)
             .keyboardShortcut(.return, modifiers: .command)
             .help("⌘↩")
         }
         .padding(12)
-        .background(Theme.headerBackground)
         .onChange(of: amend) { _, on in
             guard on, summary.isEmpty else { return }
             Task {

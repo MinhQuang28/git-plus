@@ -40,13 +40,12 @@ struct StashDetailView: View {
                 Button("Apply") { run("apply stash", "Stash applied") { try await $0.applyStash(entry, pop: false) } }
                     .help("Apply and keep the stash")
                 Button("Pop") { run("pop stash", "Stash applied and removed") { try await $0.applyStash(entry, pop: true) } }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
                     .help("Apply and remove the stash")
                 Button("Drop…", role: .destructive) { confirmDrop = true }
             }
-            .controlSize(.regular)
+            .buttonStyle(.glass)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(Theme.headerBackground)
             Rectangle().fill(Theme.separator).frame(height: 1)
             CommitDetailView(repoURL: repo.url, target: GitService.stashTarget(entry))
         }
@@ -87,12 +86,13 @@ struct OperationBannerView: View {
             }
             Button("Abort…", role: .destructive) { confirmAbort = true }
             Button("Continue") { run("continue \(operation.rawValue)", "\(operation.title) completed") { try await $0.continueOperation(operation) } }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
                 .disabled(conflicts > 0)
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(Theme.banner)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.bannerBorder).frame(height: 1) }
+        .buttonStyle(.glass)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .glassEffect(.regular.tint(Theme.bannerBorder.opacity(0.35)), in: .rect(cornerRadius: 14))
+        .padding(.horizontal, 10).padding(.vertical, 8)
         .confirmationDialog("Abort \(operation.title.lowercased())?", isPresented: $confirmAbort) {
             Button("Abort \(operation.title)", role: .destructive) {
                 run("abort", "\(operation.title) aborted") { try await $0.abortOperation(operation) }

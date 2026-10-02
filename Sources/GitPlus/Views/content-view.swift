@@ -11,11 +11,11 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var store = store
-        VStack(spacing: 0) {
-            TopBarView(selection: selection)
+        NavigationSplitView {
+            SidebarView(selection: selection)
+        } detail: {
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Theme.paneBackground)
         .overlay(alignment: .bottom) {
             if let toast = store.toast { ToastView(toast: toast).id(toast.id) }
         }
@@ -33,9 +33,9 @@ struct ContentView: View {
         case .repo(let id):
             if let repo = store.repo(id) { RepoWorkspaceView(repo: repo).id(repo.id) } else { placeholder }
         case .group(let id):
-            if store.group(id) != nil { GroupWorkspaceView(groupID: id, selection: selection).id(id) } else { placeholder }
+            if let group = store.group(id) { GroupWorkspaceView(groupID: id, selection: selection, title: group.name).id(id) } else { placeholder }
         case .ungrouped:
-            GroupWorkspaceView(groupID: nil, selection: selection).id("ungrouped")
+            GroupWorkspaceView(groupID: nil, selection: selection, title: "Ungrouped").id("ungrouped")
         case nil:
             placeholder
         }
@@ -45,7 +45,7 @@ struct ContentView: View {
         ContentUnavailableView {
             Label(store.workspace.repos.isEmpty ? "No Repositories" : "No Selection", systemImage: "square.stack.3d.up")
         } description: {
-            Text("Add repositories with ⌘O, or pick one from “Current Repository” above.")
+            Text("Add repositories with ⌘O, then pick one in the sidebar.")
         } actions: {
             Button("Add Repositories…") {
                 let urls = FolderPicker.choose()

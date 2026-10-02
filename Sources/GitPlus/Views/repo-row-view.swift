@@ -67,3 +67,32 @@ struct ProviderIcon: View {
         }
     }
 }
+
+struct RepoContextMenu: View {
+    @Environment(WorkspaceStore.self) private var store
+    let repo: RepoEntry
+    @Binding var selection: SidebarSelection?
+
+    var body: some View {
+        Button("Fetch") { Task { await store.fetch([repo.id]) } }
+        Button("Pull (fast-forward)") { Task { await store.pull([repo.id]) } }
+        Divider()
+        Menu("Move to Group") {
+            ForEach(store.groups) { g in Button(g.name) { store.move(repoIDs: [repo.id], to: g.id) } }
+            Divider()
+            Button("Ungrouped") { store.move(repoIDs: [repo.id], to: nil) }
+        }
+        Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
+        Button("Open in Terminal") {
+            NSWorkspace.shared.open([repo.url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"), configuration: .init())
+        }
+        if let web = store.statuses[repo.id]?.remote?.webURL {
+            Button("Open on Web") { NSWorkspace.shared.open(web) }
+        }
+        Divider()
+        Button("Remove from Git Plus", role: .destructive) {
+            if selection == .repo(repo.id) { selection = nil }
+            store.remove(repoIDs: [repo.id])
+        }
+    }
+}

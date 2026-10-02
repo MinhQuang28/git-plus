@@ -34,19 +34,13 @@ struct HunkActionButton: View {
     let symbol: String
     var destructive = false
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 11, weight: .medium))
-                .padding(.horizontal, 8).padding(.vertical, 2)
-                .background(Capsule().fill(hovering ? (destructive ? Theme.removedWord : Color.accentColor) : Theme.headerBackground))
-                .overlay(Capsule().stroke(Theme.separator))
-                .foregroundStyle(hovering ? .white : (destructive ? Theme.deleted : .primary))
+        Button(role: destructive ? .destructive : nil, action: action) {
+            Label(title, systemImage: symbol).font(.system(size: 11, weight: .medium))
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .buttonStyle(.glass)
+        .controlSize(.small)
     }
 }
 
@@ -62,18 +56,16 @@ struct LineSelectionBar: View {
             Text("\(count) line\(count == 1 ? "" : "s") selected").font(.system(size: 13, weight: .medium))
             Divider().frame(height: 18)
             if area == .unstaged {
-                Button("Discard", role: .destructive) { apply(.discard) }
-                Button("Stage Lines") { apply(.stage) }.buttonStyle(.borderedProminent)
+                Button("Discard", role: .destructive) { apply(.discard) }.buttonStyle(.glass)
+                Button("Stage Lines") { apply(.stage) }.buttonStyle(.glassProminent)
             } else {
-                Button("Unstage Lines") { apply(.unstage) }.buttonStyle(.borderedProminent)
+                Button("Unstage Lines") { apply(.unstage) }.buttonStyle(.glassProminent)
             }
             IconButton(symbol: "xmark", help: "Clear selection (Esc)", action: clear)
                 .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().stroke(Theme.separator))
-        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+        .glassEffect(.regular, in: .capsule)
         .padding(.bottom, 14)
     }
 }
