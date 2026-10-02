@@ -51,6 +51,11 @@ struct GroupWorkspaceView: View {
             .disabled(ids.isEmpty || busy)
             .help("Pull every repository in this group (Settings → Sync sets fast-forward / rebase / merge)")
         }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
+            AddToGroupMenu(groupID: groupID) { Label("Add Repository", systemImage: "plus") }
+                .help("Add a repository to \(title)")
+        }
     }
 
     private var repoList: some View {
@@ -63,6 +68,29 @@ struct GroupWorkspaceView: View {
             .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
         }
         .listStyle(.inset)
+        .overlay {
+            if repos.isEmpty {
+                ContentUnavailableView {
+                    Label("No repositories", systemImage: "folder.badge.plus")
+                } description: {
+                    Text("Add a local repository or move one from another group.")
+                } actions: {
+                    AddToGroupMenu(groupID: groupID) { Text("Add Repository…") }.fixedSize()
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            // Rounded glass button, consistent with the rest of the Liquid Glass UI.
+            AddToGroupMenu(groupID: groupID) {
+                Label("Add Repository", systemImage: "plus").frame(maxWidth: .infinity)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .menuIndicator(.hidden)
+            .padding(Spacing.s)
+        }
     }
 
     private var activityList: some View {
