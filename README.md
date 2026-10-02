@@ -10,7 +10,7 @@ hooks, SSH keys and credential helpers behave exactly like in Terminal. No token
 - **Group dashboard** – branch, ahead/behind, uncommitted changes for every repo; *Fetch All* / *Pull All* (ff-only) in parallel.
 - **Group activity** – recent commits of all repos in a group merged into one timeline.
 - **Commit diff** – history per repo (HEAD / all branches / any branch, message search), changed files with +/− stats,
-  unified diff with line numbers, "full file" context. Select several commits (⌘/⇧-click) to diff the whole range.
+  unified or side-by-side (split) diff with syntax highlighting, line numbers and "full file" context. Select several commits (⌘/⇧-click) to diff the whole range.
 - **Pull / Merge Requests** – `gh pr list` for GitHub, `glab mr list` for GitLab (detected from the remote URL).
   Settings (⌘,) shows `gh auth status` / `glab auth status`.
 
