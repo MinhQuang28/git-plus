@@ -25,7 +25,7 @@ struct GroupWorkspaceView: View {
             main.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle(title)
-        .navigationSubtitle("\(repos.count) repositories")
+        .toolbar(removing: .title)
         .toolbar { groupToolbar }
         .task(id: revisionKey) { await loadActivity() }
     }

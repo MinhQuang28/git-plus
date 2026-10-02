@@ -41,8 +41,8 @@ struct RepoWorkspaceView: View {
                 OperationBannerView(repo: repo, operation: op, conflicts: status?.conflicts ?? 0)
             }
         }
-        .navigationTitle(repo.name)
-        .navigationSubtitle(subtitle)
+        .navigationTitle(repo.name)          // window menu / Mission Control only
+        .toolbar(removing: .title)            // the name is already in "Current Repository"
         .toolbar {
             RepoToolbar(repo: repo, status: status, tab: $tab, changeCount: tree.count, stashCount: stashes.count)
         }
@@ -59,16 +59,6 @@ struct RepoWorkspaceView: View {
             activationTick += 1
             Task { await store.refreshStatus([repo.id]) }
         }
-    }
-
-    private var subtitle: String {
-        guard let s = status else { return "" }
-        var parts: [String] = []
-        if s.changedFiles > 0 { parts.append("\(s.changedFiles) changed") }
-        if s.ahead > 0 { parts.append("↑\(s.ahead)") }
-        if s.behind > 0 { parts.append("↓\(s.behind)") }
-        if let date = s.lastFetched { parts.append("fetched \(RelativeTime.string(date))") }
-        return parts.joined(separator: " · ")
     }
 
     @ViewBuilder private var main: some View {

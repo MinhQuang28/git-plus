@@ -85,14 +85,26 @@ struct SyncToolbarButton: View {
                 else { await store.fetch([repo.id]) }
             }
         } label: {
-            if busy {
-                Label { Text("Syncing…") } icon: { ProgressView().controlSize(.small) }.labelStyle(.titleAndIcon)
-            } else {
-                Label(title, systemImage: icon).labelStyle(.titleAndIcon)
+            // Two lines like GitHub Desktop: action on top, last fetch time below.
+            HStack(spacing: 7) {
+                Group {
+                    if busy { ProgressView().controlSize(.small) } else { Image(systemName: icon) }
+                }
+                .frame(width: 18)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(busy ? "Syncing…" : title).font(.system(size: 11.5, weight: .semibold))
+                    Text(caption).font(.system(size: 9.5)).foregroundStyle(.secondary)
+                }
             }
+            .padding(.horizontal, 4)
         }
         .disabled(busy)
-        .help(status?.lastFetched.map { "Last fetched \(RelativeTime.string($0))" } ?? "Never fetched")
+        .help("Fetch, pull or push depending on the branch state (⌘⇧F / ⌘⇧L / ⌘⇧P)")
+    }
+
+    private var caption: String {
+        guard let date = status?.lastFetched else { return "Never fetched" }
+        return "Fetched \(RelativeTime.string(date))"
     }
 
     private var remoteName: String { status?.upstream?.split(separator: "/").first.map(String.init) ?? "origin" }
