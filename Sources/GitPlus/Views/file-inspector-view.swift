@@ -82,6 +82,7 @@ struct FileHistoryPane: View {
                 revisions = try await git.fileHistory(path)
                 selection = revisions.first?.id
             } catch {
+                if error is CancellationError { return }
                 self.error = error.localizedDescription
             }
             isLoading = false
@@ -130,6 +131,7 @@ struct BlamePane: View {
                 }
                 lines = loaded
             } catch {
+                if error is CancellationError { return }
                 self.error = error.localizedDescription
             }
             isLoading = false

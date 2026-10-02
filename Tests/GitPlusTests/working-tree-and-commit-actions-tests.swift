@@ -26,7 +26,11 @@ final class WorkingTreeAndCommitActionsTests: XCTestCase {
     private func read(_ name: String) throws -> String { try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8) }
 
     func testPorcelainParserSplitsAreas() {
-        let tree = GitParsers.workingTree("MM a.txt\0?? new.txt\0R  b.txt\0old.txt\0D  gone.txt\0UU c.txt\0")
+        let h = "N... 100644 100644 100644 h1 h2"
+        let tree = GitParsers.snapshot([
+            "1 MM \(h) a.txt", "? new.txt", "2 R. \(h) R100 b.txt", "old.txt", "1 D. \(h) gone.txt",
+            "u UU N... 100644 100644 100644 100644 h1 h2 h3 c.txt",
+        ].joined(separator: "\0") + "\0").tree
         XCTAssertEqual(tree.staged.map(\.path), ["a.txt", "b.txt", "gone.txt"])
         XCTAssertEqual(tree.unstaged.map(\.path), ["a.txt", "new.txt"])
         XCTAssertEqual(tree.conflicted.map(\.path), ["c.txt"])

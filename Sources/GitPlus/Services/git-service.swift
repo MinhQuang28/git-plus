@@ -10,22 +10,21 @@ struct GitService: Sendable {
 
     // MARK: Status
 
-    func status() async throws -> RepoStatus {
-        // Three processes in parallel: porcelain status, git dir + FETCH_HEAD path, remote URLs.
-        async let porcelain = git(["status", "--porcelain=v2", "--branch"])
-        async let paths = git(["rev-parse", "--absolute-git-dir", "--git-path", "FETCH_HEAD"])
-        async let remotes = remoteURLs()
-        var status = GitParsers.status(try await porcelain)
-        let lines = ((try? await paths) ?? "").split(separator: "\n").map(String.init)
-        if let dir = lines.first {
+    func status() async throws -> RepoStatus { try await snapshot(includeTree: false).status }
+
+    /// Repo summary and (optionally) the full Changes list from a single `git status`.
+    /// `includeTree` lists every untracked file (needed for the Changes tab, slower on huge trees).
+    func snapshot(includeTree: Bool) async throws -> (status: RepoStatus, tree: WorkingTree) {
+        async let porcelain = git(["status", "--porcelain=v2", "-z", "--branch"] + (includeTree ? ["--untracked-files=all"] : []))
+        async let meta = RepoMetaCache.meta(for: self)
+        var (status, tree) = GitParsers.snapshot(try await porcelain)
+        let m = await meta
+        if let dir = m.gitDir {
             status.operation = Self.operation(inGitDir: dir)
-            if lines.count > 1 {
-                let fetchHead = lines[1].hasPrefix("/") ? URL(fileURLWithPath: lines[1]) : repo.appendingPathComponent(lines[1])
-                status.lastFetched = (try? FileManager.default.attributesOfItem(atPath: fetchHead.path))?[.modificationDate] as? Date
-            }
+            status.lastFetched = m.fetchHead.flatMap { (try? FileManager.default.attributesOfItem(atPath: $0))?[.modificationDate] as? Date }
         }
-        status.remote = Self.preferredRemote(await remotes).flatMap { RemoteInfo.parse($0.url) }
-        return status
+        status.remote = Self.preferredRemote(m.remotes).flatMap { RemoteInfo.parse($0.url) }
+        return (status, tree)
     }
 
     /// `remote.<name>.url` for every configured remote, in config order.
@@ -126,9 +125,8 @@ struct GitService: Sendable {
 
     func changedFiles(_ target: DiffTarget) async throws -> [ChangedFile] {
         let range = [target.base, target.head]
-        async let names = git(["diff", "--name-status", "-M", "--no-color"] + range + ["--"])
-        async let stats = git(["diff", "--numstat", "-M", "--no-color"] + range + ["--"])
-        return GitParsers.changedFiles(nameStatus: try await names, numstat: try await stats)
+        // One process: rename detection (the expensive part) runs once for both status and line counts.
+        return GitParsers.changedFiles(rawNumstat: try await git(["diff", "--raw", "--numstat", "-z", "-M", "--no-color"] + range + ["--"]))
     }
 
     func diff(_ target: DiffTarget, file: ChangedFile, context: Int = 3, ignoreWhitespace: Bool = false) async throws -> String {

@@ -9,11 +9,20 @@ struct FileInspection: Identifiable, Hashable {
     var mode: Mode
 }
 
-struct InspectFileKey: EnvironmentKey { static let defaultValue: ((FileInspection) -> Void)? = nil }
+/// Opens file history / blame. Equatable by repository so passing it down doesn't invalidate
+/// readers on every parent render (closures never compare equal).
+struct InspectFileAction: Equatable {
+    let repoID: UUID
+    let handler: (FileInspection) -> Void
+    func callAsFunction(_ item: FileInspection) { handler(item) }
+    static func == (a: Self, b: Self) -> Bool { a.repoID == b.repoID }
+}
+
+struct InspectFileKey: EnvironmentKey { static let defaultValue: InspectFileAction? = nil }
 
 extension EnvironmentValues {
     /// Opens file history / blame for a path in the current repository.
-    var inspectFile: ((FileInspection) -> Void)? {
+    var inspectFile: InspectFileAction? {
         get { self[InspectFileKey.self] }
         set { self[InspectFileKey.self] = newValue }
     }
@@ -28,7 +37,6 @@ struct RepoWorkspaceView: View {
     @AppStorage("autoFetch") private var autoFetch = true
 
     @State private var selectedCommits: [Commit] = []
-    @State private var tree = WorkingTree()
     @State private var selectedChanges = Set<ChangedFile.ID>()
     @State private var stashes: [StashEntry] = []
     @State private var selectedStash: StashEntry.ID?
@@ -47,6 +55,8 @@ struct RepoWorkspaceView: View {
     /// Working-tree-only changes (files edited outside Git Plus): reload changes, not history.
     private var worktreeRevision: Int { store.worktreeRevisions[repo.id] ?? 0 }
     private var status: RepoStatus? { store.statuses[repo.id] }
+    /// Filled by the store's status refresh (one `git status` for the toolbar and the Changes tab).
+    private var tree: WorkingTree { store.trees[repo.id] ?? WorkingTree() }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -72,13 +82,14 @@ struct RepoWorkspaceView: View {
                 OperationBannerView(repo: repo, operation: op, conflicts: status?.conflicts ?? 0) { showConflicts = true }
             }
         }
-        .environment(\.inspectFile, { (item: FileInspection) in inspection = item })
+        .environment(\.inspectFile, InspectFileAction(repoID: repo.id) { inspection = $0 })
         .navigationTitle(repo.name)          // window menu / Mission Control only
         .toolbar(removing: .title)            // the name is already in "Current Repository"
         .toolbar {
             RepoToolbar(repo: repo, status: status, tab: $tab, changeCount: tree.count, stashCount: stashes.count)
         }
-        .task(id: "\(revision)|\(worktreeRevision)|\(activationTick)") { await reload() }
+        .task(id: "\(revision)|\(activationTick)") { await reloadStashes() }
+        .onChange(of: tree) { _, tree in fixSelection(tree) }
         .task(id: autoFetch) {
             // Auto-fetch while this repository is open.
             while autoFetch && !Task.isCancelled {
@@ -87,8 +98,14 @@ struct RepoWorkspaceView: View {
                 await store.backgroundFetch(repo.id)
             }
         }
-        .onAppear { startWatching() }
+        .onAppear {
+            store.setOpen(repo.id, true)
+            fixSelection(tree)
+            Task { await store.refreshStatus([repo.id]) }
+            startWatching()
+        }
         .onDisappear {
+            store.setOpen(repo.id, false)
             watcher = nil
             pendingExternalChange?.cancel()
         }
@@ -172,15 +189,19 @@ struct RepoWorkspaceView: View {
         }
     }
 
-    private func reload() async {
-        async let loadedTree = git.workingTree()
-        async let loadedStashes = git.stashes()
-        tree = (try? await loadedTree) ?? WorkingTree()
-        stashes = (try? await loadedStashes) ?? []
-        let ids = Set(tree.all.map(\.id))
-        selectedChanges = selectedChanges.intersection(ids)
-        if selectedChanges.isEmpty, let first = tree.all.first { selectedChanges = [first.id] }
+    private func reloadStashes() async {
+        guard let loaded = try? await git.stashes() else { return }
+        stashes = loaded
         if !stashes.contains(where: { $0.id == selectedStash }) { selectedStash = stashes.first?.id }
+    }
+
+    /// Keeps the Changes selection valid after the file list changes (defaults to the first file).
+    private func fixSelection(_ tree: WorkingTree) {
+        let all = tree.all
+        let ids = Set(all.map(\.id))
+        let kept = selectedChanges.intersection(ids)
+        let next = kept.isEmpty ? Set(all.first.map { [$0.id] } ?? []) : kept
+        if next != selectedChanges { selectedChanges = next }
     }
 }
 

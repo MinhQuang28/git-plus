@@ -9,6 +9,7 @@ struct GroupWorkspaceView: View {
     @AppStorage("groupTab") private var tab = 0
     let title: String
     @State private var activity: [RepoCommit] = []
+    @State private var sparklines: [UUID: [Int]] = [:]
     @State private var selectedActivity: RepoCommit.ID?
     @State private var isLoading = false
 
@@ -103,7 +104,7 @@ struct GroupWorkspaceView: View {
 
     @ViewBuilder private var main: some View {
         if tab == 0 {
-            GroupDashboardView(repos: repos, activity: activity, selection: $selection)
+            GroupDashboardView(repos: repos, sparklines: sparklines, selection: $selection)
         } else if let item = activity.first(where: { $0.id == selectedActivity }), let repo = store.repo(item.repoID) {
             CommitDetailView(repoURL: repo.url, target: .commit(item.commit), commit: item.commit, remote: store.statuses[repo.id]?.remote)
                 .id(item.id)
@@ -138,6 +139,7 @@ struct GroupWorkspaceView: View {
             }
         }
         activity = merged.sorted { $0.commit.date > $1.commit.date }
+        sparklines = GroupDashboardView.sparklines(activity)
     }
 }
 

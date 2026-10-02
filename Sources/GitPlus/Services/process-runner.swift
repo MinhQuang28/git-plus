@@ -40,12 +40,22 @@ enum ProcessRunner {
     }
 
     /// `okCodes`: exit statuses treated as success (e.g. `git diff --no-index` exits 1 when files differ).
+    /// Non-blocking (pipe readability + termination handlers, no parked threads) and cancellable:
+    /// cancelling the calling task terminates the child process.
     static func runData(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0]) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(with: Result { try runBlocking(tool, args, in: directory, okCodes: okCodes) })
-            }
+        try Task.checkCancellation()
+        let run = RunningProcess(tool, args, in: directory)
+        let result = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in run.start(continuation) }
+        } onCancel: {
+            run.terminate()
         }
+        try Task.checkCancellation()
+        guard okCodes.contains(result.status) else {
+            throw CommandError(command: ([tool] + args).joined(separator: " "), status: result.status,
+                               stderr: String(decoding: result.stderr, as: UTF8.self))
+        }
+        return result.stdout
     }
 
     private static let availabilityLock = NSLock()
@@ -58,46 +68,6 @@ enum ProcessRunner {
         let found = (try? await run("/usr/bin/which", [tool])) != nil
         if found { availabilityLock.withLock { _ = available.insert(tool) } }
         return found
-    }
-
-    private static func runBlocking(_ tool: String, _ args: [String], in directory: URL?, okCodes: Set<Int32>) throws -> Data {
-        let process = Process()
-        if tool.hasPrefix("/") {
-            process.executableURL = URL(fileURLWithPath: tool)
-            process.arguments = args
-        } else {
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            process.arguments = [tool] + args
-        }
-        process.environment = environment
-        if let directory { process.currentDirectoryURL = directory }
-
-        let out = Pipe(), err = Pipe()
-        process.standardOutput = out
-        process.standardError = err
-        process.standardInput = FileHandle.nullDevice
-        try process.run()
-
-        // Drain stderr concurrently so a full pipe buffer can never deadlock the child.
-        var errData = Data()
-        let errGroup = DispatchGroup()
-        errGroup.enter()
-        DispatchQueue.global().async {
-            errData = err.fileHandleForReading.readDataToEndOfFile()
-            errGroup.leave()
-        }
-        let outData = out.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        errGroup.wait()
-
-        guard okCodes.contains(process.terminationStatus) else {
-            throw CommandError(
-                command: ([tool] + args).joined(separator: " "),
-                status: process.terminationStatus,
-                stderr: String(decoding: errData, as: UTF8.self)
-            )
-        }
-        return outData
     }
 
     private static func loginShellPath() -> [String]? {

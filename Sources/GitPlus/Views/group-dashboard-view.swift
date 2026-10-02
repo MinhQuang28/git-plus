@@ -4,8 +4,8 @@ import SwiftUI
 struct GroupDashboardView: View {
     @Environment(WorkspaceStore.self) private var store
     let repos: [RepoEntry]
-    /// Recent commits of the group (for the per-repository activity sparkline).
-    let activity: [RepoCommit]
+    /// Commits per day over the last 14 days, per repository (computed once per activity load).
+    let sparklines: [UUID: [Int]]
     @Binding var selection: SidebarSelection?
 
     enum Filter: String, CaseIterable {
@@ -27,13 +27,23 @@ struct GroupDashboardView: View {
     }
 
     private func matches(_ repo: RepoEntry) -> Bool { Self.passes(filter, store.statuses[repo.id]) }
-    private func count(_ f: Filter) -> Int { repos.filter { Self.passes(f, store.statuses[$0.id]) }.count }
+
+    /// Every filter's count in one pass over the repositories.
+    private func counts() -> [Filter: Int] {
+        var result: [Filter: Int] = [:]
+        for repo in repos {
+            let s = store.statuses[repo.id]
+            for f in Filter.allCases where Self.passes(f, s) { result[f, default: 0] += 1 }
+        }
+        return result
+    }
 
     var body: some View {
+        let counts = counts()
         VStack(spacing: 0) {
             HStack(spacing: Spacing.s) {
                 ForEach(Filter.allCases, id: \.self) { f in
-                    let n = count(f)
+                    let n = counts[f] ?? 0
                     if f == .all || n > 0 {
                         Button { filter = f } label: {
                             HStack(spacing: Spacing.xs) {
@@ -60,7 +70,6 @@ struct GroupDashboardView: View {
             Divider()
             let visible = repos.filter(matches)
             if grid {
-                let sparklines = Self.sparklines(activity)
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 360), spacing: Spacing.m)], spacing: Spacing.m) {
                         ForEach(visible) { repo in
@@ -81,7 +90,7 @@ struct GroupDashboardView: View {
     private static let emptySparkline = Array(repeating: 0, count: 14)
 
     /// Commits per day over the last 14 days for every repository, in one pass over the activity.
-    private static func sparklines(_ activity: [RepoCommit]) -> [UUID: [Int]] {
+    static func sparklines(_ activity: [RepoCommit]) -> [UUID: [Int]] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         var result: [UUID: [Int]] = [:]

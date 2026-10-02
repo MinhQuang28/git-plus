@@ -32,32 +32,35 @@ final class RemoteInfoTests: XCTestCase {
 
 final class GitParsersTests: XCTestCase {
     func testStatusPorcelainV2() {
-        let out = """
-        # branch.oid 1234
-        # branch.head main
-        # branch.upstream origin/main
-        # branch.ab +2 -3
-        1 .M N... 100644 100644 100644 a b file.txt
-        ? new.txt
-        """
-        let s = GitParsers.status(out)
+        let out = [
+            "# branch.oid 1234", "# branch.head main", "# branch.upstream origin/main", "# branch.ab +2 -3",
+            "1 .M N... 100644 100644 100644 a b file with spaces.txt", "? new.txt",
+        ].joined(separator: "\0") + "\0"
+        let (s, tree) = GitParsers.snapshot(out)
         XCTAssertEqual(s.branch, "main")
         XCTAssertEqual(s.upstream, "origin/main")
         XCTAssertEqual(s.ahead, 2)
         XCTAssertEqual(s.behind, 3)
         XCTAssertEqual(s.changedFiles, 2)
+        XCTAssertEqual(tree.unstaged.map(\.path), ["file with spaces.txt", "new.txt"])
+        XCTAssertTrue(tree.staged.isEmpty)
     }
 
     func testChangedFilesMergesRenameAndNumstat() {
-        let files = GitParsers.changedFiles(
-            nameStatus: "M\tsrc/a.swift\nR087\told/b.swift\tnew/b.swift\nA\timg.png\n",
-            numstat: "3\t1\tsrc/a.swift\n2\t2\t{old => new}/b.swift\n-\t-\timg.png\n"
-        )
+        let raw = [
+            ":100644 100644 aaa bbb M", "src/a.swift",
+            ":100644 100644 ccc ddd R087", "old/b.swift", "new/b.swift",
+            ":000000 100644 000 eee A", "img.png",
+            "3\t1\tsrc/a.swift", "2\t2\t", "old/b.swift", "new/b.swift", "-\t-\timg.png",
+        ].joined(separator: "\0") + "\0"
+        let files = GitParsers.changedFiles(rawNumstat: raw)
         XCTAssertEqual(files.map(\.status), ["M", "R", "A"])
         XCTAssertEqual(files[1].oldPath, "old/b.swift")
         XCTAssertEqual(files[1].path, "new/b.swift")
         XCTAssertEqual(files[0].additions, 3)
         XCTAssertEqual(files[0].deletions, 1)
+        XCTAssertEqual(files[1].additions, 2)
+        XCTAssertEqual(files[2].additions, 0)   // binary
         XCTAssertEqual(files[2].additions, 0)
     }
 

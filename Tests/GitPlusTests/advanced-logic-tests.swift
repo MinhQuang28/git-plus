@@ -47,6 +47,13 @@ final class CommitGraphTests: XCTestCase {
         XCTAssertEqual(rows[2].bottom, [])
     }
 
+    func testIncrementalLayoutMatchesFullLayout() {
+        let commits = [commit("m", ["b", "f"]), commit("f", ["a"]), commit("b", ["a"]), commit("a", [])]
+        var graph = CommitGraph()
+        let paged = graph.append(Array(commits.prefix(2))) + graph.append(Array(commits.suffix(2)))
+        XCTAssertEqual(paged, CommitGraph.layout(commits))
+    }
+
     func testBranchAndMerge() {
         // m merges f into main: m -> (b, f), f -> a, b -> a
         let rows = CommitGraph.layout([commit("m", ["b", "f"]), commit("f", ["a"]), commit("b", ["a"]), commit("a", [])])

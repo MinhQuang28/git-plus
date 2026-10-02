@@ -174,6 +174,7 @@ struct PullRequestsView: View {
             items = try await service.pullRequests(state: state)
             error = nil
         } catch {
+            if error is CancellationError { return }   // superseded by a newer load
             items = []
             self.error = error.localizedDescription
         }

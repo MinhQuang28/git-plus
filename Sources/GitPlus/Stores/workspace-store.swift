@@ -4,8 +4,14 @@ import Observation
 /// Owns the workspace (groups + repos), persists it, and tracks live repo status.
 @MainActor @Observable
 final class WorkspaceStore {
-    var workspace = Workspace()
+    var workspace = Workspace() { didSet { membershipCache = [:] } }
+    /// Sorted repos per group; group views and the repository list ask for these on every render.
+    @ObservationIgnored private var membershipCache: [UUID?: [RepoEntry]] = [:]
     private(set) var statuses: [UUID: RepoStatus] = [:]
+    /// Changes-tab file lists, kept for repositories open in a window (filled by the same `git status`).
+    private(set) var trees: [UUID: WorkingTree] = [:]
+    /// Open repository windows per repo id (ref-counted); only these pay for a full untracked-file scan.
+    @ObservationIgnored private var openRepos: [UUID: Int] = [:]
     private(set) var busy: Set<UUID> = []
     /// Bumped after every mutation of a repo so views can reload history/changes.
     private(set) var revisions: [UUID: Int] = [:]
@@ -104,7 +110,11 @@ final class WorkspaceStore {
     var groups: [RepoGroup] { workspace.groups.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending } }
 
     func repos(in groupID: UUID?) -> [RepoEntry] {
-        workspace.repos.filter { $0.groupID == groupID }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        let all = workspace.repos   // read first so callers keep observing `workspace` on cache hits
+        if let cached = membershipCache[groupID] { return cached }
+        let sorted = all.filter { $0.groupID == groupID }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        membershipCache[groupID] = sorted
+        return sorted
     }
 
     var pinnedRepos: [RepoEntry] {
@@ -195,12 +205,43 @@ final class WorkspaceStore {
         }
     }
 
+    func setOpen(_ id: UUID, _ open: Bool) {
+        openRepos[id, default: 0] += open ? 1 : -1
+        if openRepos[id, default: 0] <= 0 {
+            openRepos[id] = nil
+            trees[id] = nil
+        }
+    }
+
+    /// One `git status` per repo yields both the summary and (for open repos) the Changes list.
+    /// Results are written in batches (~150 ms) and only when changed: each write re-renders every
+    /// view reading `statuses`, so per-repo writes during a 50-repo refresh would cascade.
     func refreshStatus(_ ids: [UUID]? = nil) async {
         let targets = (ids ?? workspace.repos.map(\.id)).compactMap(repo)
-        await forEachBounded(targets, { repo -> (UUID, RepoStatus?) in (repo.id, try? await GitService(repo: repo.url).status()) }) { result in
-            // Unchanged statuses are not written: every write re-renders all views reading `statuses`.
-            if statuses[result.0] != result.1 { statuses[result.0] = result.1 }
+        let open = Set(openRepos.keys)
+        var pending: [(UUID, RepoStatus?, WorkingTree?)] = []
+        var lastFlush = Date()
+        func flush() {
+            guard !pending.isEmpty else { return }
+            var nextStatuses = statuses, nextTrees = trees
+            for (id, status, tree) in pending {
+                nextStatuses[id] = status
+                if let tree, openRepos[id] != nil { nextTrees[id] = tree }
+            }
+            pending = []
+            lastFlush = Date()
+            if nextStatuses != statuses { statuses = nextStatuses }
+            if nextTrees != trees { trees = nextTrees }
         }
+        await forEachBounded(targets, { repo -> (UUID, RepoStatus?, WorkingTree?) in
+            let includeTree = open.contains(repo.id)
+            let snap = try? await GitService(repo: repo.url).snapshot(includeTree: includeTree)
+            return (repo.id, snap?.status, includeTree ? snap?.tree : nil)
+        }) { result in
+            pending.append(result)
+            if Date().timeIntervalSince(lastFlush) > 0.15 { flush() }
+        }
+        flush()
     }
 
     private func report(_ title: String, _ error: Error, repoID: UUID?) {
@@ -264,8 +305,13 @@ final class WorkspaceStore {
     /// Silent background fetch (auto-fetch): no toast, no error banner.
     func backgroundFetch(_ id: UUID) async {
         guard let repo = repo(id), !busy.contains(id) else { return }
+        let before = statuses[id]
         try? await GitService(repo: repo.url).fetch()
         await refreshStatus([id])
+        // Our own ref updates must not trigger a second full reload via file events;
+        // history only reloads when the fetch actually brought something.
+        if statuses[id]?.behind != before?.behind || statuses[id]?.ahead != before?.ahead { revisions[id, default: 0] += 1 }
+        lastMutation[id] = Date()
     }
 
     func fetch(_ ids: [UUID]) async { await runEach(ids, label: "fetch", done: "Fetched") { try await $0.fetch() } }

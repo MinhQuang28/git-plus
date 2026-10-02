@@ -80,6 +80,19 @@ final class GitServiceIntegrationTests: XCTestCase {
         XCTAssertEqual(store.groups.map(\.name), ["gitlab.com/team"])
         let groupID = try XCTUnwrap(store.groups.first?.id)
         XCTAssertEqual(store.repos(in: groupID).count, 2)
+        XCTAssertEqual(store.repos(in: nil).count, 0)   // cached membership refreshed after regrouping
+
+        // Only open repositories get the Changes list from the shared status refresh.
+        let first = try XCTUnwrap(store.repos(in: groupID).first)
+        try "x".write(to: first.url.appendingPathComponent("new.txt"), atomically: true, encoding: .utf8)
+        await store.refreshStatus([first.id])
+        XCTAssertNil(store.trees[first.id])
+        store.setOpen(first.id, true)
+        await store.refreshStatus([first.id])
+        XCTAssertEqual(store.trees[first.id]?.unstaged.map(\.path), ["new.txt"])
+        XCTAssertEqual(store.statuses[first.id]?.changedFiles, 1)
+        store.setOpen(first.id, false)
+        XCTAssertNil(store.trees[first.id])
 
         // Persisted and reloaded.
         let reloaded = WorkspaceStore(fileURL: root.appendingPathComponent("ws.json"))

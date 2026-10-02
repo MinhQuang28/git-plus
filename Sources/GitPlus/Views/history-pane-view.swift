@@ -13,6 +13,8 @@ struct HistoryPaneView: View {
 
     @State private var commits: [Commit] = []
     @State private var graph: [GraphRow] = []
+    /// Lane state after the last laid-out commit, so the next page continues instead of recomputing all.
+    @State private var graphLayout = CommitGraph()
     /// Lanes to reserve (computed with the graph, not per render).
     @State private var graphWidth = 1
     @State private var hasMore = false
@@ -198,7 +200,8 @@ struct HistoryPaneView: View {
             hasMore = false
         }
         commits = loaded
-        setGraph(q.isEmpty && compareBranch == nil ? CommitGraph.layout(loaded) : [])
+        var layout = CommitGraph()
+        setGraph(q.isEmpty && compareBranch == nil ? layout.append(loaded) : [], layout: layout)
         // Keep the selection across refreshes when possible; otherwise select the newest commit.
         let kept = selection.filter { hash in loaded.contains { $0.hash == hash } }
         selection = kept.isEmpty ? Set(loaded.prefix(1).map(\.hash)) : kept
@@ -213,12 +216,20 @@ struct HistoryPaneView: View {
         let page = (try? await git.log(ref: ref, allRefs: all, limit: Self.pageSize, skip: commits.count)) ?? []
         hasMore = page.count == Self.pageSize
         let known = Set(commits.map(\.hash))
-        commits += page.filter { !known.contains($0.hash) }
-        if compareBranch == nil { setGraph(CommitGraph.layout(commits)) }
+        let fresh = page.filter { !known.contains($0.hash) }
+        commits += fresh
+        if compareBranch == nil, graph.count + fresh.count == commits.count {
+            var layout = graphLayout
+            let rows = layout.append(fresh)
+            graphLayout = layout
+            graph += rows
+            graphWidth = max(graphWidth, min(rows.map(\.width).max() ?? 1, 8))
+        }
     }
 
-    private func setGraph(_ rows: [GraphRow]) {
+    private func setGraph(_ rows: [GraphRow], layout: CommitGraph) {
         graph = rows
+        graphLayout = layout
         graphWidth = min(rows.map(\.width).max() ?? 1, 8)
     }
 }

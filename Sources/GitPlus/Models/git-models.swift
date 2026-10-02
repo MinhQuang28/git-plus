@@ -135,7 +135,7 @@ struct ChangedFile: Identifiable, Hashable, Sendable {
 
 enum ConflictSide: Sendable { case ours, theirs }
 
-struct WorkingTree: Sendable {
+struct WorkingTree: Equatable, Sendable {
     var staged: [ChangedFile] = []
     var unstaged: [ChangedFile] = []
     var conflicted: [ChangedFile] = []

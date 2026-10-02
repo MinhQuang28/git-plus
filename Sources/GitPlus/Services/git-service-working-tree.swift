@@ -3,7 +3,7 @@ import Foundation
 /// Working tree & index ("Changes" tab): list, diff, stage/unstage, discard, commit.
 extension GitService {
     func workingTree() async throws -> WorkingTree {
-        GitParsers.workingTree(try await git(["status", "--porcelain=v1", "-z", "--untracked-files=all"]))
+        GitParsers.snapshot(try await git(["status", "--porcelain=v2", "-z", "--untracked-files=all"])).tree
     }
 
     var hasUncommittedChanges: Bool {

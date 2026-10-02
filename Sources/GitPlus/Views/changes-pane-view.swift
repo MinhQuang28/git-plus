@@ -26,6 +26,8 @@ struct ChangesPaneView: View {
     private var hasConflicts: Bool { !tree.conflicted.isEmpty }
 
     var body: some View {
+        // Filtered once per render (each is a pass over possibly thousands of files).
+        let conflicted = self.conflicted, staged = self.staged, unstaged = self.unstaged
         VStack(spacing: 0) {
             if !tree.isEmpty { filterField }
             List(selection: $selection) {

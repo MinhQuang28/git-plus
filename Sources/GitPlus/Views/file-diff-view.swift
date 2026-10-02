@@ -53,6 +53,8 @@ struct FileDiffView: View {
     @AppStorage("diffIgnoreWhitespace") private var ignoreWhitespace = false
 
     @State private var raw = ""
+    /// Syntax setting the current `styles` were rendered with (nil = nothing rendered yet).
+    @State private var renderedSyntax: Bool?
     @State private var lines: [DiffLine] = []
     @State private var rows: [SplitDiffRow] = []
     @State private var styles: [Int: AttributedString] = [:]
@@ -154,12 +156,13 @@ struct FileDiffView: View {
 
     @ViewBuilder private func hunkActions(_ hunkID: Int) -> some View {
         if canStage {
-            let ids = PatchBuilder.changeLines(inHunk: hunkID, raw: raw)
+            // Line ids are resolved on click, not on every render (splitting `raw` is O(diff size)).
+            let ids = { PatchBuilder.changeLines(inHunk: hunkID, raw: raw) }
             if file.area == .unstaged {
-                HunkActionButton(title: "Discard", symbol: "arrow.uturn.backward", destructive: true) { perform(.discard, ids: ids) }
-                HunkActionButton(title: "Stage Hunk", symbol: "plus") { perform(.stage, ids: ids) }
+                HunkActionButton(title: "Discard", symbol: "arrow.uturn.backward", destructive: true) { perform(.discard, ids: ids()) }
+                HunkActionButton(title: "Stage Hunk", symbol: "plus") { perform(.stage, ids: ids()) }
             } else {
-                HunkActionButton(title: "Unstage Hunk", symbol: "minus") { perform(.unstage, ids: ids) }
+                HunkActionButton(title: "Unstage Hunk", symbol: "minus") { perform(.unstage, ids: ids()) }
             }
         }
     }
@@ -188,13 +191,12 @@ struct FileDiffView: View {
         defer { isLoading = false }
         do {
             let text = try await source.load(file, context: fullContext ? 100_000 : 3, ignoreWhitespace: ignoreWhitespace)
-            let path = file.path, syntax = syntaxHighlight
-            let prepared = await Task.detached {
-                let parsed = DiffParser.parse(text)
-                let rows = SplitDiffBuilder.rows(parsed.lines)
-                return (parsed, rows, DiffRenderer.render(parsed.lines, rows: rows, path: path, syntax: syntax))
-            }.value
+            let syntax = syntaxHighlight
+            // Reloads (activation, unrelated revisions) often return the same text: skip re-highlighting.
+            if text == raw, renderedSyntax == syntax, error == nil { return }
+            let prepared = try await Self.prepare(text, path: file.path, syntax: syntax)
             raw = text
+            renderedSyntax = syntax
             lines = prepared.0.lines
             truncated = prepared.0.truncated
             rows = prepared.1
@@ -206,8 +208,20 @@ struct FileDiffView: View {
             currentHunk = 0
             error = nil
         } catch {
+            if error is CancellationError { return }   // superseded by a newer load
             self.error = error.localizedDescription
         }
+    }
+
+    /// Parse → split rows → highlight, off the main actor. Runs as a child of the view's task,
+    /// so switching files cancels it between stages instead of finishing a stale highlight.
+    nonisolated private static func prepare(_ text: String, path: String, syntax: Bool) async throws
+        -> ((lines: [DiffLine], truncated: Bool), [SplitDiffRow], [Int: AttributedString]) {
+        let parsed = DiffParser.parse(text)
+        try Task.checkCancellation()
+        let rows = SplitDiffBuilder.rows(parsed.lines)
+        try Task.checkCancellation()
+        return (parsed, rows, DiffRenderer.render(parsed.lines, rows: rows, path: path, syntax: syntax))
     }
 }
 

@@ -104,6 +104,7 @@ struct CommitDetailView: View {
                 body_ = ""
             }
         } catch {
+            if error is CancellationError { return }   // superseded by a newer load
             self.error = error.localizedDescription
         }
     }

@@ -19,10 +19,18 @@ struct GraphRow: Hashable, Sendable {
     var isMerge: Bool
 }
 
-enum CommitGraph {
+/// Incremental: keeps the open lanes, so loading another history page lays out only the new commits.
+struct CommitGraph: Sendable {
+    private var lanes: [String?] = []
+
     /// `commits` must be ordered newest first, children before parents (`git log --date-order`).
     static func layout(_ commits: [Commit]) -> [GraphRow] {
-        var lanes: [String?] = []
+        var graph = CommitGraph()
+        return graph.append(commits)
+    }
+
+    /// Lays out the next commits (continuing from the previous call).
+    mutating func append(_ commits: [Commit]) -> [GraphRow] {
         var rows: [GraphRow] = []
         rows.reserveCapacity(commits.count)
 
@@ -33,11 +41,11 @@ enum CommitGraph {
         }
 
         for commit in commits {
-            let before = lanes
-            let node = before.firstIndex(where: { $0 == commit.hash }) ?? freeSlot()
+            let node = lanes.firstIndex(where: { $0 == commit.hash }) ?? freeSlot()
 
+            // Segments from the top edge, computed before this commit's lanes are released.
             var top: [GraphRow.Segment] = []
-            for (i, hash) in before.enumerated() {
+            for (i, hash) in lanes.enumerated() {
                 guard let hash else { continue }
                 top.append(GraphRow.Segment(from: i, to: hash == commit.hash ? node : i))
             }
