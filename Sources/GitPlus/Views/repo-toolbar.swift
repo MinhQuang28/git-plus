@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 enum RepoTab: Int, CaseIterable {
@@ -36,7 +37,7 @@ struct RepoToolbar: ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             SyncToolbarButton(repo: repo, status: status)
             if let provider = status?.remote?.provider, provider != .other {
-                ReviewsToolbarButton(repoURL: repo.url, provider: provider)
+                ReviewsToolbarButton(repo: repo, provider: provider)
             }
         }
         ToolbarSpacer(.fixed, placement: .primaryAction)
@@ -70,7 +71,8 @@ struct BranchToolbarButton: View {
     }
 }
 
-/// Fetch → Pull (behind) → Push (ahead) → Publish (no upstream), like GitHub Desktop.
+/// One sync button that does the obvious next step (Fetch → Pull → Push → Publish, like GitHub Desktop),
+/// with every other sync action in its menu.
 struct SyncToolbarButton: View {
     @Environment(WorkspaceStore.self) private var store
     let repo: RepoEntry
@@ -78,43 +80,80 @@ struct SyncToolbarButton: View {
 
     var body: some View {
         let busy = store.busy.contains(repo.id)
-        Button {
-            Task {
-                if let s = status, s.behind > 0 { await store.pull([repo.id]) }
-                else if let s = status, s.ahead > 0 || (s.upstream == nil && s.remote != nil) { await store.push(repo.id) }
-                else { await store.fetch([repo.id]) }
+        let suggestion = SyncSuggestion(status)
+        Menu {
+            Button("Fetch") { Task { await store.fetch([repo.id]) } }
+            Section("Pull") {
+                ForEach(PullMode.allCases, id: \.self) { mode in
+                    Button("Pull (\(mode.title))") { Task { await store.pull([repo.id], mode: mode) } }
+                }
             }
+            Section("Push") {
+                Button(status?.upstream == nil ? "Publish Branch" : "Push") { Task { await store.push(repo.id) } }
+                    .disabled(status?.remote == nil)
+                Button("Force Push (with Lease)…") { ForcePushConfirmation.run(store, repo.id) }
+                    .disabled(status?.upstream == nil)
+            }
+            Divider()
+            Button("Remotes…") { RepoActions.post(.showRemotes) }
         } label: {
             if busy {
                 Label { Text("Syncing…") } icon: { ProgressView().controlSize(.small) }.labelStyle(.titleAndIcon)
             } else {
-                Label(title, systemImage: icon).labelStyle(.titleAndIcon)
+                Label(suggestion.title, systemImage: suggestion.symbol).labelStyle(.titleAndIcon)
             }
+        } primaryAction: {
+            primary(suggestion)
         }
         .disabled(busy)
-        .help(status?.lastFetched.map { "Last fetched \(RelativeTime.string($0))" } ?? "Never fetched")
+        .help(help(suggestion))
     }
 
-    private var remoteName: String { status?.upstream?.split(separator: "/").first.map(String.init) ?? "origin" }
-
-    private var title: String {
-        guard let s = status else { return "Fetch" }
-        if s.behind > 0 { return "Pull \(s.behind)" }
-        if s.ahead > 0 { return "Push \(s.ahead)" }
-        if s.upstream == nil, s.remote != nil { return "Publish" }
-        return "Fetch \(remoteName)"
+    private func primary(_ suggestion: SyncSuggestion) {
+        switch suggestion {
+        case .noRemote: RepoActions.post(.showRemotes)
+        case .publish, .push: Task { await store.push(repo.id) }
+        case .pull: Task { await store.pull([repo.id]) }
+        case .fetch: Task { await store.fetch([repo.id]) }
+        case .diverged(let ahead, let behind): DivergedPrompt.run(store, repo.id, ahead: ahead, behind: behind)
+        }
     }
 
-    private var icon: String {
-        guard let s = status else { return "arrow.triangle.2.circlepath" }
-        if s.behind > 0 { return "arrow.down.circle" }
-        if s.ahead > 0 || (s.upstream == nil && s.remote != nil) { return "arrow.up.circle" }
-        return "arrow.triangle.2.circlepath"
+    private func help(_ suggestion: SyncSuggestion) -> String {
+        let fetched = status?.lastFetched.map { "Last fetched \(RelativeTime.string($0))" } ?? "Never fetched"
+        switch suggestion {
+        case .diverged: return "Your branch and its upstream have diverged — choose how to sync. \(fetched)"
+        case .noRemote: return "This repository has no remote. Click to add one."
+        default: return fetched
+        }
+    }
+}
+
+/// Asks how to sync a branch that diverged from its upstream.
+@MainActor
+enum DivergedPrompt {
+    static func run(_ store: WorkspaceStore, _ id: UUID, ahead: Int, behind: Int) {
+        let branch = store.statuses[id]?.branch ?? "Your branch"
+        let alert = NSAlert()
+        alert.messageText = "\(branch) has diverged"
+        alert.informativeText = "You have \(ahead) commit\(ahead == 1 ? "" : "s") the remote doesn't have, and the remote has \(behind) you don't.\n\n"
+            + "Rebase replays your commits on top of the remote ones (linear history). Merge creates a merge commit. "
+            + "Force push replaces the remote branch — only use it when you rewrote history on purpose (e.g. after amending)."
+        alert.addButton(withTitle: "Pull with Rebase")
+        alert.addButton(withTitle: "Pull with Merge")
+        alert.addButton(withTitle: "Force Push…")
+        alert.addButton(withTitle: "Cancel")
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: Task { await store.pull([id], mode: .rebase) }
+        case .alertSecondButtonReturn: Task { await store.pull([id], mode: .merge) }
+        case .alertThirdButtonReturn: ForcePushConfirmation.run(store, id)
+        default: break
+        }
     }
 }
 
 struct ReviewsToolbarButton: View {
-    let repoURL: URL
+    let repo: RepoEntry
     let provider: GitProvider
     @State private var isPresented = false
 
@@ -122,7 +161,7 @@ struct ReviewsToolbarButton: View {
         Button { isPresented.toggle() } label: { Label(provider.reviewNoun, systemImage: "arrow.triangle.pull") }
             .help("\(provider.reviewNoun) via \(provider.cliName ?? "")")
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                PullRequestsView(repoURL: repoURL, provider: provider).frame(width: 860, height: 460)
+                PullRequestsView(repo: repo, provider: provider) { isPresented = false }.frame(width: 860, height: 460)
             }
     }
 }

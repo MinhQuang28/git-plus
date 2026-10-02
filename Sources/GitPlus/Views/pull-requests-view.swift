@@ -1,9 +1,12 @@
+import AppKit
 import SwiftUI
 
 /// Lists GitHub PRs (via `gh`) or GitLab MRs (via `glab`) for a repository.
 struct PullRequestsView: View {
-    let repoURL: URL
+    @Environment(WorkspaceStore.self) private var store
+    let repo: RepoEntry
     let provider: GitProvider
+    var dismiss: () -> Void = {}
 
     @State private var state = "open"
     @State private var items: [PullRequestItem] = []
@@ -24,6 +27,16 @@ struct PullRequestsView: View {
                 Spacer()
                 if let cli = provider.cliName { Text("via `\(cli)`").font(.caption).foregroundStyle(.secondary) }
                 Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
+                    .help("Reload")
+                Button {
+                    Task {
+                        do { try await service.createForCurrentBranch() } catch { self.error = error.localizedDescription }
+                    }
+                } label: {
+                    Label(provider == .gitlab ? "New Merge Request" : "New Pull Request", systemImage: "plus")
+                }
+                .buttonStyle(.glassProminent)
+                .help("Opens the \(provider == .gitlab ? "merge" : "pull") request form in your browser for the current branch (push it first)")
             }
             .padding(8)
             Divider()
@@ -56,9 +69,25 @@ struct PullRequestsView: View {
                 }
                 .width(110)
                 TableColumn("") { item in
-                    if let url = item.url { Button("Open") { NSWorkspace.shared.open(url) } }
+                    HStack(spacing: Spacing.xs) {
+                        Button("Checkout") { checkout(item) }
+                            .help("Check out \(item.sourceBranch) locally")
+                        if let url = item.url { Button("Open") { NSWorkspace.shared.open(url) } }
+                    }
                 }
-                .width(60)
+                .width(140)
+            }
+        }
+    }
+
+    private var service: ProviderCLIService { ProviderCLIService(repo: repo.url, provider: provider) }
+
+    private func checkout(_ item: PullRequestItem) {
+        let service = service
+        dismiss()
+        Task {
+            await store.perform(repo.id, "checkout \(provider == .gitlab ? "!" : "#")\(item.number)", success: "Checked out \(item.sourceBranch)") { _ in
+                try await service.checkout(item.number)
             }
         }
     }
@@ -67,7 +96,7 @@ struct PullRequestsView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            items = try await ProviderCLIService(repo: repoURL, provider: provider).pullRequests(state: state)
+            items = try await service.pullRequests(state: state)
             error = nil
         } catch {
             items = []

@@ -49,6 +49,8 @@ extension GitService {
     }
 
     func merge(_ branch: String) async throws { _ = try await git(["merge", "--no-edit", branch]) }
+    /// Stages the combined changes of `branch` without committing (`merge --squash`).
+    func mergeSquash(_ branch: String) async throws { _ = try await git(["merge", "--squash", branch]) }
     func rebase(onto branch: String) async throws { _ = try await git(["-c", "core.editor=true", "rebase", branch]) }
 
     // MARK: In-progress operations
