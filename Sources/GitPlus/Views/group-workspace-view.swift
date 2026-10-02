@@ -17,8 +17,10 @@ struct GroupWorkspaceView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            if tab == 1 {
-                ResizableColumn("width.leftPane", initial: 320, range: 260...520) { activityList }
+            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
+                SwitcherColumn {
+                    if tab == 1 { activityList } else { repoList }
+                }
             }
             main.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -49,6 +51,18 @@ struct GroupWorkspaceView: View {
             .disabled(ids.isEmpty || busy)
             .help("Fast-forward every repository in this group")
         }
+    }
+
+    private var repoList: some View {
+        List(repos) { repo in
+            Button { selection = .repo(repo.id) } label: {
+                RepoRowView(repo: repo, status: store.statuses[repo.id], isBusy: store.busy.contains(repo.id))
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
+        }
+        .listStyle(.inset)
     }
 
     private var activityList: some View {
