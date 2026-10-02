@@ -33,7 +33,7 @@ struct RepoToolbar: ToolbarContent {
         }
         // Branch sits on the right, next to the sync button.
         ToolbarItem(placement: .primaryAction) {
-            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–", lastFetched: status?.lastFetched)
+            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             SyncToolbarButton(repo: repo, status: status)
@@ -58,10 +58,7 @@ struct RepoToolbar: ToolbarContent {
 struct BranchToolbarButton: View {
     let repo: RepoEntry
     let branch: String
-    let lastFetched: Date?
     @State private var isPresented = false
-
-    private var fetchedText: String { lastFetched.map { "Fetched \(RelativeTime.string($0))" } ?? "Never fetched" }
 
     var body: some View {
         Button { isPresented.toggle() } label: {
@@ -71,8 +68,7 @@ struct BranchToolbarButton: View {
             }
             .padding(.horizontal, 4)
         }
-        // Last fetch time lives in the tooltip to keep the button compact.
-        .help("\(fetchedText) · Switch, create, merge or delete branches (⌘B)")
+        .help("Switch, create, merge or delete branches (⌘B)")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             BranchPickerView(repo: repo, isPresented: $isPresented)
         }
@@ -91,7 +87,9 @@ struct SyncToolbarButton: View {
         let busy = store.busy.contains(repo.id)
         let suggestion = SyncSuggestion(status)
         Menu {
-            Button("Fetch") { Task { await store.fetch([repo.id]) } }
+            Section(fetchedText) {
+                Button("Fetch") { Task { await store.fetch([repo.id]) } }
+            }
             Section("Pull") {
                 ForEach(PullMode.allCases, id: \.self) { mode in
                     Button("Pull (\(mode.title))") { Task { await store.pull([repo.id], mode: mode) } }
@@ -109,13 +107,32 @@ struct SyncToolbarButton: View {
             if busy {
                 Label { Text("Syncing…") } icon: { ProgressView().controlSize(.small) }.labelStyle(.titleAndIcon)
             } else {
-                Label(suggestion.title, systemImage: suggestion.symbol).labelStyle(.titleAndIcon)
+                Label {
+                    Text(suggestion.title)
+                } icon: {
+                    // Orange dot nudges a fetch when the remote state is stale.
+                    Image(systemName: suggestion.symbol).overlay(alignment: .topTrailing) {
+                        if isStale { Circle().fill(.orange).frame(width: 6, height: 6).offset(x: 3, y: -2) }
+                    }
+                }
+                .labelStyle(.titleAndIcon)
             }
         } primaryAction: {
             primary(suggestion)
         }
         .disabled(busy)
-        .help(help(suggestion))
+        .help("\(help(suggestion))\n\(fetchedText)")
+    }
+
+    private var fetchedText: String {
+        status?.lastFetched.map { "Last fetched \(RelativeTime.string($0))" } ?? "Never fetched"
+    }
+
+    /// No fetch yet, or none for over an hour (only meaningful with a remote).
+    private var isStale: Bool {
+        guard status?.remote != nil else { return false }
+        guard let date = status?.lastFetched else { return true }
+        return Date().timeIntervalSince(date) > 3600
     }
 
     private func primary(_ suggestion: SyncSuggestion) {
