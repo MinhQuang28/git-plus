@@ -3,11 +3,11 @@ import SwiftUI
 
 /// Actions that need extra input before running.
 enum CommitRequest: Identifiable {
-    case reset(Commit), branch(Commit), tag(Commit), cherryPick(Commit)
+    case reset(Commit, ResetMode), branch(Commit), tag(Commit), cherryPick(Commit)
 
     var id: String {
         switch self {
-        case .reset(let c): "reset" + c.hash
+        case .reset(let c, let m): "reset\(m.rawValue)" + c.hash
         case .branch(let c): "branch" + c.hash
         case .tag(let c): "tag" + c.hash
         case .cherryPick(let c): "pick" + c.hash
@@ -28,9 +28,14 @@ struct CommitContextMenu: View {
     private var tags: [String] { commit.refs.filter { $0.hasPrefix("tag: ") }.map { String($0.dropFirst(5)) } }
 
     var body: some View {
-        Button("Reset to Commit…") { request(.reset(commit)) }.disabled(!canReset)
-        Button("Checkout Commit") { perform("checkout commit") { try await $0.checkout(commit: commit.hash) } }
-        Button("Revert Changes in Commit") { perform("revert") { [commit] in try await $0.revert(commit) } }
+        Menu("Reset Current Branch to Here") {
+            ForEach(ResetMode.allCases, id: \.self) { mode in
+                Button("\(mode.rawValue.capitalized) — \(mode.summary)") { request(.reset(commit, mode)) }
+            }
+        }
+        .disabled(!canReset)
+        Button("Checkout Commit (detached)") { perform("checkout commit", "Checked out \(commit.shortHash)") { try await $0.checkout(commit: commit.hash) } }
+        Button("Revert Changes in Commit") { perform("revert", "Reverted \(commit.shortHash)") { [commit] in try await $0.revert(commit) } }
         Divider()
         Button("Create Branch from Commit") { request(.branch(commit)) }
         Button("Create Tag…") { request(.tag(commit)) }
@@ -45,8 +50,8 @@ struct CommitContextMenu: View {
         }
     }
 
-    private func perform(_ label: String, _ op: @escaping @Sendable (GitService) async throws -> Void) {
-        Task { await store.perform(repo.id, label, op) }
+    private func perform(_ label: String, _ success: String, _ op: @escaping @Sendable (GitService) async throws -> Void) {
+        Task { await store.perform(repo.id, label, success: success, op) }
     }
 
     private func copy(_ s: String) {
@@ -65,16 +70,16 @@ struct CommitRequestPresenter: ViewModifier {
     func body(content: Content) -> some View {
         content
             .alert(title, isPresented: isPresented(for: { if case .cherryPick = $0 { return false }; return true })) {
-                if case .reset = request {
-                    Button("Reset", role: .destructive) { run() }
+                if case .reset(_, let mode) = request {
+                    Button("\(mode.rawValue.capitalized) Reset", role: mode == .hard ? .destructive : nil) { run() }
                 } else {
                     TextField("Name", text: $name)
                     Button("Create") { run() }.disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 Button("Cancel", role: .cancel) { request = nil }
             } message: {
-                if case .reset(let c) = request {
-                    Text("Moves the current branch to \(c.shortHash). Changes from later commits are kept in your working directory.")
+                if case .reset(let c, let mode) = request {
+                    Text("Moves the current branch to \(c.shortHash). \(mode.summary).")
                 }
             }
             .sheet(isPresented: isPresented(for: { if case .cherryPick = $0 { return true }; return false })) {
@@ -86,7 +91,7 @@ struct CommitRequestPresenter: ViewModifier {
 
     private var title: String {
         switch request {
-        case .reset(let c): "Reset to \(c.shortHash)?"
+        case .reset(let c, let mode): "\(mode.rawValue.capitalized) reset to \(c.shortHash)?"
         case .branch(let c): "Create branch from \(c.shortHash)"
         case .tag(let c): "Create tag on \(c.shortHash)"
         default: ""
@@ -104,9 +109,12 @@ struct CommitRequestPresenter: ViewModifier {
         name = ""
         Task {
             switch req {
-            case .reset(let c): await store.perform(repo.id, "reset") { try await $0.reset(to: c.hash) }
-            case .branch(let c): await store.perform(repo.id, "create branch") { try await $0.createBranch(n, at: c.hash) }
-            case .tag(let c): await store.perform(repo.id, "create tag") { try await $0.createTag(n, at: c.hash) }
+            case .reset(let c, let mode):
+                await store.perform(repo.id, "reset", success: "Reset to \(c.shortHash)") { try await $0.reset(to: c.hash, mode: mode) }
+            case .branch(let c):
+                await store.perform(repo.id, "create branch", success: "Created branch \(n)") { try await $0.createBranch(n, at: c.hash) }
+            case .tag(let c):
+                await store.perform(repo.id, "create tag", success: "Created tag \(n)") { try await $0.createTag(n, at: c.hash) }
             case .cherryPick: break
             }
         }
@@ -135,7 +143,7 @@ struct CherryPickSheet: View {
                     guard let target else { return }
                     let hash = commit.hash
                     dismiss()
-                    Task { await store.perform(repo.id, "cherry-pick") { try await $0.cherryPick(hash, onto: target) } }
+                    Task { await store.perform(repo.id, "cherry-pick", success: "Cherry-picked onto \(target)") { try await $0.cherryPick(hash, onto: target) } }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(target == nil)

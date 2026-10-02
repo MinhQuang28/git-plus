@@ -4,10 +4,6 @@ import Foundation
 struct GitService: Sendable {
     let repo: URL
 
-    private func git(_ args: [String]) async throws -> String {
-        try await ProcessRunner.run("git", args, in: repo)
-    }
-
     static func isRepository(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.appendingPathComponent(".git").path)
     }
@@ -19,6 +15,7 @@ struct GitService: Sendable {
         var status = GitParsers.status(out)
         status.remote = await remote()
         status.lastFetched = await lastFetched()
+        status.operation = await inProgressOperation()
         return status
     }
 

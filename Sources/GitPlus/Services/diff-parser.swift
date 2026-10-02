@@ -52,4 +52,20 @@ enum DiffParser {
         func start(_ s: Substring) -> Int { Int(s.dropFirst().split(separator: ",").first ?? "") ?? 0 }
         return (start(parts[1]), start(parts[2]))
     }
+
+    /// Renders a file with conflict markers as a pseudo-diff: "ours" blocks as removed (red),
+    /// "theirs" blocks as added (green), markers as meta rows.
+    static func conflictDiff(_ text: String) -> String {
+        var out = ["@@ conflicts: red = ours (current branch) · green = theirs (incoming) @@"]
+        var side: Character = " "
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("<<<<<<<") { side = "-"; out.append("\\ " + line); continue }
+            if line.hasPrefix("|||||||") { side = "~"; out.append("\\ " + line); continue }
+            if line.hasPrefix("=======") && side != " " { side = "+"; out.append("\\ " + line); continue }
+            if line.hasPrefix(">>>>>>>") { side = " "; out.append("\\ " + line); continue }
+            if side == "~" { continue }   // diff3 base section
+            out.append(String(side) + line)
+        }
+        return out.joined(separator: "\n")
+    }
 }

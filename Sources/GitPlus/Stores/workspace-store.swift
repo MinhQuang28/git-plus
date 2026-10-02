@@ -4,12 +4,29 @@ import Observation
 /// Owns the workspace (groups + repos), persists it, and tracks live repo status.
 @MainActor @Observable
 final class WorkspaceStore {
-    private(set) var workspace = Workspace()
+    var workspace = Workspace()
     private(set) var statuses: [UUID: RepoStatus] = [:]
     private(set) var busy: Set<UUID> = []
     /// Bumped after every mutation of a repo so views can reload history/changes.
     private(set) var revisions: [UUID: Int] = [:]
     var errorMessage: String?
+
+    struct Toast: Identifiable, Equatable {
+        let id = UUID()
+        let message: String
+        var isError = false
+    }
+    private(set) var toast: Toast?
+
+    /// Shows a short confirmation that disappears after a few seconds.
+    func showToast(_ message: String, isError: Bool = false) {
+        let t = Toast(message: message, isError: isError)
+        toast = t
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            if toast?.id == t.id { toast = nil }
+        }
+    }
 
     private let fileURL: URL
 
@@ -33,55 +50,6 @@ final class WorkspaceStore {
 
     func repo(_ id: UUID) -> RepoEntry? { workspace.repos.first { $0.id == id } }
     func group(_ id: UUID) -> RepoGroup? { workspace.groups.first { $0.id == id } }
-
-    // MARK: Groups
-
-    @discardableResult
-    func createGroup(named name: String) -> RepoGroup {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        if let existing = workspace.groups.first(where: { $0.name == trimmed }) { return existing }
-        let group = RepoGroup(name: trimmed.isEmpty ? "New Group" : trimmed)
-        workspace.groups.append(group)
-        save()
-        return group
-    }
-
-    func renameGroup(_ id: UUID, to name: String) {
-        guard let i = workspace.groups.firstIndex(where: { $0.id == id }), !name.isEmpty else { return }
-        workspace.groups[i].name = name
-        save()
-    }
-
-    /// "Ungrouped" is virtual: renaming it turns its repos into a real group with that name.
-    @discardableResult
-    func renameUngrouped(to name: String) -> UUID? {
-        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-        let group = createGroup(named: name)
-        move(repoIDs: repos(in: nil).map(\.id), to: group.id)
-        return group.id
-    }
-
-    /// Deletes the group; its repos become ungrouped (never removed).
-    func deleteGroup(_ id: UUID) {
-        workspace.groups.removeAll { $0.id == id }
-        for i in workspace.repos.indices where workspace.repos[i].groupID == id { workspace.repos[i].groupID = nil }
-        save()
-    }
-
-    func move(repoIDs: [UUID], to groupID: UUID?) {
-        for i in workspace.repos.indices where repoIDs.contains(workspace.repos[i].id) { workspace.repos[i].groupID = groupID }
-        save()
-    }
-
-    /// Groups every ungrouped repo by `host/namespace` of its remote (e.g. `github.com/acme`).
-    func autoGroupByRemote() async {
-        let ungrouped = repos(in: nil)
-        await refreshStatus(ungrouped.map(\.id))
-        for repo in ungrouped {
-            guard let key = statuses[repo.id]?.remote?.groupKey else { continue }
-            move(repoIDs: [repo.id], to: createGroup(named: key).id)
-        }
-    }
 
     // MARK: Repos
 
@@ -120,7 +88,8 @@ final class WorkspaceStore {
 
     /// Runs one user-triggered git mutation, reports failures, refreshes status. Returns success.
     @discardableResult
-    func perform(_ id: UUID, _ label: String, _ op: @escaping @Sendable (GitService) async throws -> Void) async -> Bool {
+    func perform(_ id: UUID, _ label: String, success: String? = nil,
+                 _ op: @escaping @Sendable (GitService) async throws -> Void) async -> Bool {
         guard let repo = repo(id), !busy.contains(id) else { return false }
         busy.insert(id)
         defer { busy.remove(id) }
@@ -131,18 +100,22 @@ final class WorkspaceStore {
         }
         revisions[id, default: 0] += 1
         await refreshStatus([id])
+        if ok, let success { showToast(success) }
         return ok
     }
 
     func push(_ id: UUID) async {
         let needsUpstream = statuses[id]?.upstream == nil
-        await perform(id, "push") { try await $0.push(setUpstream: needsUpstream) }
+        let branch = statuses[id]?.branch ?? "branch"
+        await perform(id, "push", success: needsUpstream ? "Published \(branch)" : "Pushed \(branch)") {
+            try await $0.push(setUpstream: needsUpstream)
+        }
     }
 
-    func fetch(_ ids: [UUID]) async { await runEach(ids, label: "fetch") { try await $0.fetch() } }
-    func pull(_ ids: [UUID]) async { await runEach(ids, label: "pull") { try await $0.pull() } }
+    func fetch(_ ids: [UUID]) async { await runEach(ids, label: "fetch", done: "Fetched") { try await $0.fetch() } }
+    func pull(_ ids: [UUID]) async { await runEach(ids, label: "pull", done: "Pulled") { try await $0.pull() } }
 
-    private func runEach(_ ids: [UUID], label: String, _ op: @escaping @Sendable (GitService) async throws -> Void) async {
+    private func runEach(_ ids: [UUID], label: String, done: String, _ op: @escaping @Sendable (GitService) async throws -> Void) async {
         let targets = ids.compactMap(repo).filter { !busy.contains($0.id) }
         targets.forEach { busy.insert($0.id) }
         var failures: [String] = []
@@ -160,7 +133,11 @@ final class WorkspaceStore {
         }
         targets.forEach { revisions[$0.id, default: 0] += 1 }
         await refreshStatus(targets.map(\.id))
-        if !failures.isEmpty { errorMessage = "\(label) failed:\n" + failures.joined(separator: "\n") }
+        if !failures.isEmpty {
+            errorMessage = "\(label) failed:\n" + failures.joined(separator: "\n")
+        } else if !targets.isEmpty {
+            showToast(targets.count == 1 ? "\(done) \(targets[0].name)" : "\(done) \(targets.count) repositories")
+        }
     }
 
     // MARK: Persistence
@@ -171,7 +148,7 @@ final class WorkspaceStore {
         catch { errorMessage = "Could not read workspace: \(error.localizedDescription)" }
     }
 
-    private func save() {
+    func save() {
         do {
             try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             let encoder = JSONEncoder()

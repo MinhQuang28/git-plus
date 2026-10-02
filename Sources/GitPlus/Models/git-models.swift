@@ -10,6 +10,44 @@ struct RepoStatus: Hashable, Sendable {
     var remote: RemoteInfo?
     /// Modification time of FETCH_HEAD ("Last fetched … ago").
     var lastFetched: Date?
+    /// Merge / rebase / cherry-pick / revert waiting to be continued or aborted.
+    var operation: GitOperation?
+    var conflicts = 0
+}
+
+/// A multi-step git operation that stopped (usually on conflicts).
+enum GitOperation: String, Sendable {
+    case merge, rebase, cherryPick = "cherry-pick", revert
+
+    var title: String {
+        switch self {
+        case .merge: "Merge"
+        case .rebase: "Rebase"
+        case .cherryPick: "Cherry-pick"
+        case .revert: "Revert"
+        }
+    }
+}
+
+enum ResetMode: String, CaseIterable, Sendable {
+    case soft, mixed, hard
+
+    var summary: String {
+        switch self {
+        case .soft: "Keep all changes staged"
+        case .mixed: "Keep changes in the working directory (unstaged)"
+        case .hard: "Discard all changes — cannot be undone"
+        }
+    }
+}
+
+struct StashEntry: Identifiable, Hashable, Sendable {
+    var id: String { hash }
+    let hash: String
+    /// `stash@{n}` at load time.
+    let ref: String
+    let message: String
+    let date: Date
 }
 
 struct BranchList: Sendable {
@@ -65,14 +103,33 @@ struct DiffTarget: Hashable, Sendable {
     }
 }
 
+/// Which part of the working tree a change belongs to (`.revision` for commit diffs).
+enum ChangeArea: String, Sendable { case revision, staged, unstaged, conflicted }
+
 struct ChangedFile: Identifiable, Hashable, Sendable {
-    var id: String { path }
-    /// Single-letter status: A, M, D, R, C, T.
+    var id: String { area == .revision ? path : "\(area.rawValue):\(path)" }
+    /// Single-letter status: A, M, D, R, C, T, ? (untracked), U (conflict).
     let status: String
     let path: String
     let oldPath: String?
     var additions: Int = 0
     var deletions: Int = 0
+    var area: ChangeArea = .revision
+
+    /// Paths to pass to git (both sides of a rename).
+    var pathspec: [String] { [oldPath, path].compactMap { $0 } }
+    /// Hunk/line staging only makes sense for modifications of existing files.
+    var supportsPartialStaging: Bool { status == "M" && (area == .staged || area == .unstaged) }
+}
+
+struct WorkingTree: Sendable {
+    var staged: [ChangedFile] = []
+    var unstaged: [ChangedFile] = []
+    var conflicted: [ChangedFile] = []
+
+    var all: [ChangedFile] { conflicted + staged + unstaged }
+    var isEmpty: Bool { staged.isEmpty && unstaged.isEmpty && conflicted.isEmpty }
+    var count: Int { Set(all.map(\.path)).count }
 }
 
 enum DiffLineKind: Sendable { case context, added, removed, hunk, meta }

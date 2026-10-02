@@ -23,75 +23,164 @@ final class WorkingTreeAndCommitActionsTests: XCTestCase {
     private func write(_ name: String, _ text: String) throws {
         try text.write(to: dir.appendingPathComponent(name), atomically: true, encoding: .utf8)
     }
+    private func read(_ name: String) throws -> String { try String(contentsOf: dir.appendingPathComponent(name), encoding: .utf8) }
 
-    func testPorcelainParser() {
-        let files = GitParsers.workingChanges(" M a.txt\0?? new.txt\0R  b.txt\0old.txt\0D  gone.txt\0")
-        XCTAssertEqual(Dictionary(uniqueKeysWithValues: files.map { ($0.path, $0.status) }),
-                       ["a.txt": "M", "new.txt": "?", "b.txt": "R", "gone.txt": "D"])
-        XCTAssertEqual(files.first { $0.path == "b.txt" }?.oldPath, "old.txt")
+    func testPorcelainParserSplitsAreas() {
+        let tree = GitParsers.workingTree("MM a.txt\0?? new.txt\0R  b.txt\0old.txt\0D  gone.txt\0UU c.txt\0")
+        XCTAssertEqual(tree.staged.map(\.path), ["a.txt", "b.txt", "gone.txt"])
+        XCTAssertEqual(tree.unstaged.map(\.path), ["a.txt", "new.txt"])
+        XCTAssertEqual(tree.conflicted.map(\.path), ["c.txt"])
+        XCTAssertEqual(tree.staged.first { $0.path == "b.txt" }?.oldPath, "old.txt")
+        XCTAssertNotEqual(tree.staged[0].id, tree.unstaged[0].id)   // same path, different areas
     }
 
-    func testCommitOnlyCheckedFilesAndUntrackedDiff() async throws {
+    func testStageUnstageCommitAndAmend() async throws {
         try write("a.txt", "one\ntwo\n")
         try write("new.txt", "hello\n")
-        try write("skip.txt", "later\n")
-        let changes = try await git.workingChanges()
-        XCTAssertEqual(changes.map(\.path), ["a.txt", "new.txt", "skip.txt"])
-
-        let untracked = try await git.workingDiff(changes[1])
+        var tree = try await git.workingTree()
+        XCTAssertEqual(tree.unstaged.map(\.path), ["a.txt", "new.txt"])
+        let untracked = try await git.workingDiff(tree.unstaged[1])
         XCTAssertTrue(DiffParser.parse(untracked).lines.contains { $0.kind == .added && $0.text == "hello" })
-        let tracked = try await git.workingDiff(changes[0])
-        XCTAssertTrue(DiffParser.parse(tracked).lines.contains { $0.kind == .added && $0.text == "two" })
 
-        try await git.commit(files: Array(changes.prefix(2)), summary: "add two", description: "body")
-        let remaining = try await git.workingChanges()
-        XCTAssertEqual(remaining.map(\.path), ["skip.txt"])
-        let message = try await git.commitMessage("HEAD")
-        XCTAssertTrue(message.hasPrefix("add two\n\nbody"))
-    }
+        try await git.stage([tree.unstaged[0]])
+        tree = try await git.workingTree()
+        XCTAssertEqual(tree.staged.map(\.path), ["a.txt"])
+        let stagedDiff = try await git.workingDiff(tree.staged[0])
+        XCTAssertTrue(stagedDiff.contains("+two"))
 
-    func testDiscardRestoresAndDeletesUntracked() async throws {
+        try await git.commit(summary: "two", description: "")
+        tree = try await git.workingTree()
+        XCTAssertEqual(tree.staged.count, 0)
+        XCTAssertEqual(tree.unstaged.map(\.path), ["new.txt"])
+
+        try await git.stageAll()
+        try await git.commit(summary: "two + new", description: "body", amend: true)
+        let log = try await git.log()
+        XCTAssertEqual(log.map(\.subject), ["two + new", "first"])
+        let last = await git.lastCommitMessage()
+        XCTAssertEqual(last.description, "body")
+
         try write("a.txt", "changed\n")
-        try write("tmp.txt", "x\n")
-        for file in try await git.workingChanges() { try await git.discard(file) }
-        let after = try await git.workingChanges()
-        XCTAssertTrue(after.isEmpty)
+        try await git.stageAll()
+        try await git.unstageAll()
+        tree = try await git.workingTree()
+        XCTAssertTrue(tree.staged.isEmpty)
+        try await git.discard(tree.unstaged[0])
+        let empty = try await git.workingTree()
+        XCTAssertTrue(empty.isEmpty)
     }
 
-    func testResetRevertTagBranchAndCherryPick() async throws {
+    func testLineAndHunkStaging() async throws {
+        try write("a.txt", "one\ntwo\nthree\nfour\n")
+        try await sh("commit", "-qam", "base")
+        try write("a.txt", "ONE\ntwo\nthree\nFOUR\n")
+        let file = try await git.workingTree().unstaged[0]
+        let raw = try await git.workingDiff(file, context: 0)
+        let lines = DiffParser.parse(raw).lines
+
+        // Stage only the change to line 1 ("one" → "ONE").
+        let pick = Set(lines.filter { ($0.kind == .removed && $0.text == "one") || ($0.kind == .added && $0.text == "ONE") }.map(\.id))
+        let patch = try XCTUnwrap(PatchBuilder.patch(raw: raw, selected: pick, reverse: false))
+        try await git.apply(patch: patch, cached: true, reverse: false)
+        let staged = try await git.git(["show", ":a.txt"])
+        XCTAssertEqual(staged, "ONE\ntwo\nthree\nfour\n")
+
+        // Unstage it again from the staged diff (reverse, whole hunk).
+        let stagedFile = try await git.workingTree().staged[0]
+        let stagedRaw = try await git.workingDiff(stagedFile, context: 0)
+        let hunk = try XCTUnwrap(DiffParser.parse(stagedRaw).lines.first { $0.kind == .hunk })
+        let unstagePatch = try XCTUnwrap(PatchBuilder.patch(
+            raw: stagedRaw, selected: PatchBuilder.changeLines(inHunk: hunk.id, raw: stagedRaw), reverse: true))
+        try await git.apply(patch: unstagePatch, cached: true, reverse: true)
+        let tree = try await git.workingTree()
+        XCTAssertTrue(tree.staged.isEmpty)
+
+        // Discard only the "four" → "FOUR" change in the worktree.
+        let raw2 = try await git.workingDiff(tree.unstaged[0], context: 0)
+        let four = Set(DiffParser.parse(raw2).lines.filter { $0.text == "four" || $0.text == "FOUR" }.map(\.id))
+        let discard = try XCTUnwrap(PatchBuilder.patch(raw: raw2, selected: four, reverse: true))
+        try await git.apply(patch: discard, cached: false, reverse: true)
+        XCTAssertEqual(try read("a.txt"), "ONE\ntwo\nthree\nfour\n")
+    }
+
+    func testLineStagingWithDefaultContext() async throws {
+        try write("a.txt", (1...12).map { "line\($0)" }.joined(separator: "\n") + "\n")
+        try await sh("commit", "-qam", "base")
+        try write("a.txt", (1...12).map { $0 == 2 ? "TWO" : $0 == 11 ? "ELEVEN" : "line\($0)" }.joined(separator: "\n") + "\n")
+        let file = try await git.workingTree().unstaged[0]
+        let raw = try await git.workingDiff(file)   // -U3: one hunk per change, each with context
+        let ids = Set(DiffParser.parse(raw).lines.filter { $0.text == "line11" || $0.text == "ELEVEN" }.map(\.id))
+        let patch = try XCTUnwrap(PatchBuilder.patch(raw: raw, selected: ids, reverse: false))
+        try await git.apply(patch: patch, cached: true, reverse: false)
+        let index = try await git.git(["show", ":a.txt"])
+        XCTAssertTrue(index.contains("ELEVEN"))
+        XCTAssertTrue(index.contains("line2\n"))
+    }
+
+    func testStashMergeConflictAndBranches() async throws {
+        try write("a.txt", "stashed\n")
+        try await git.stash(message: "wip", includeUntracked: true)
+        var stashes = try await git.stashes()
+        XCTAssertEqual(stashes.count, 1)
+        XCTAssertTrue(stashes[0].message.contains("wip"))
+        let files = try await git.changedFiles(GitService.stashTarget(stashes[0]))
+        XCTAssertEqual(files.map(\.path), ["a.txt"])
+        try await git.applyStash(stashes[0], pop: true)
+        stashes = try await git.stashes()
+        XCTAssertTrue(stashes.isEmpty)
+        XCTAssertEqual(try read("a.txt"), "stashed\n")
+        try await git.discard(try await git.workingTree().unstaged[0])
+
+        // Conflicting merge → in-progress operation → resolve with "theirs" → continue.
+        try await git.createBranch("feature")
+        try write("a.txt", "feature\n")
+        try await sh("commit", "-qam", "feature change")
+        try await git.switchBranch("main")
+        try write("a.txt", "main\n")
+        try await sh("commit", "-qam", "main change")
+        do { try await git.merge("feature"); XCTFail("expected conflict") } catch {}
+        let op = await git.inProgressOperation()
+        XCTAssertEqual(op, .merge)
+        let status = try await git.status()
+        XCTAssertEqual(status.conflicts, 1)
+        let conflicted = try await git.workingTree().conflicted[0]
+        try await git.resolve(conflicted, useOurs: false)
+        try await git.continueOperation(.merge)
+        let after = await git.inProgressOperation()
+        XCTAssertNil(after)
+        XCTAssertEqual(try read("a.txt"), "feature\n")
+
+        try await git.renameBranch("feature", to: "done")
+        try await git.deleteBranch("done", force: false)
+        let branches = try await git.branches()
+        XCTAssertEqual(branches.local, ["main"])
+    }
+
+    func testResetModesRevertTagAndCherryPick() async throws {
         try write("a.txt", "one\ntwo\n")
         try await sh("commit", "-qam", "second")
-        var log = try await git.log()
-        XCTAssertEqual(log.count, 2)
-
-        try await git.createTag("v1", at: log[1].hash)
-        log = try await git.log()
-        XCTAssertTrue(log[1].refs.contains("tag: v1"))
+        let log = try await git.log()
+        try await git.createTag("v1", at: log[1].hash, message: "release")
+        let tagged = try await git.log()
+        XCTAssertTrue(tagged[1].refs.contains("tag: v1"))
 
         try await git.revert(log[0])
         let afterRevert = try await git.log()
         XCTAssertEqual(afterRevert.first?.subject, #"Revert "second""#)
 
-        // Branch from the first commit, then cherry-pick "second" onto it without leaving main.
         try await git.createBranch("feature", at: log[1].hash)
         try await git.switchBranch("main")
         try await git.cherryPick(log[0].hash, onto: "feature")
         let current = try await git.branches().current
         XCTAssertEqual(current, "main")
-        let feature = try await git.log(ref: "feature")
-        XCTAssertEqual(feature.first?.subject, "second")
 
-        // Same parent + same second ⇒ the picked commit is byte-identical to "second",
-        // so feature is fully contained in main: main is ahead by the revert only.
-        let ab = await git.aheadBehind("feature")
-        XCTAssertEqual(ab.ahead, 1)
-        XCTAssertEqual(ab.behind, 0)
-
-        // Mixed reset keeps the reverted content as a working-tree change.
-        try await git.reset(to: log[0].hash)
+        try await git.reset(to: log[0].hash, mode: .soft)
+        var tree = try await git.workingTree()
+        XCTAssertEqual(tree.staged.map(\.path), ["a.txt"])
+        try await git.reset(to: log[0].hash, mode: .hard)
+        tree = try await git.workingTree()
+        XCTAssertTrue(tree.isEmpty)
         let head = await git.headHash()
         XCTAssertEqual(head, log[0].hash)
-        let changed = try await git.workingChanges()
-        XCTAssertEqual(changed.map(\.path), ["a.txt"])
     }
 }

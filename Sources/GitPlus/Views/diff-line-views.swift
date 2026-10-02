@@ -1,7 +1,14 @@
 import SwiftUI
 
-private let diffFont = Font.system(size: 12.5, design: .monospaced)
 private let gutterWidth: CGFloat = 46
+
+struct DiffFontSizeKey: EnvironmentKey { static let defaultValue: CGFloat = 12.5 }
+extension EnvironmentValues {
+    var diffFontSize: CGFloat {
+        get { self[DiffFontSizeKey.self] }
+        set { self[DiffFontSizeKey.self] = newValue }
+    }
+}
 
 private func lineColor(_ kind: DiffLineKind?) -> Color {
     switch kind {
@@ -50,59 +57,70 @@ private func content(_ line: DiffLine, _ styled: AttributedString?) -> some View
         .padding(.vertical, 1.5)
 }
 
-/// Hunk header (`@@ -1,3 +1,3 @@`) spanning the full width.
-private struct HunkRow: View {
+/// Hunk header (`@@ -1,3 +1,3 @@`) spanning the full width, with optional actions.
+struct HunkRow<Actions: View>: View {
+    @Environment(\.diffFontSize) private var fontSize
     let line: DiffLine
     let gutters: Int
+    @ViewBuilder var actions: Actions
 
     var body: some View {
-        HStack(spacing: 0) {
-            Color.clear.frame(width: CGFloat(gutters) * (gutterWidth + 8) + 20)
+        HStack(spacing: 6) {
+            Color.clear.frame(width: CGFloat(gutters) * (gutterWidth + 8) + 14)
             Text(line.text).foregroundStyle(Theme.gutterText).lineLimit(1)
             Spacer(minLength: 0)
+            actions
         }
-        .font(diffFont)
-        .padding(.vertical, 5)
+        .font(.system(size: fontSize, design: .monospaced))
+        .padding(.vertical, 4).padding(.trailing, 10)
         .background(Theme.hunkLine)
     }
 }
 
-/// Unified row: old no. | new no. | marker | text — the GitHub Desktop layout.
+/// Unified row: old no. | new no. | marker | text. Change lines can be selected for line staging.
 struct DiffLineView: View {
+    @Environment(\.diffFontSize) private var fontSize
     let line: DiffLine
     let styled: AttributedString?
+    var isSelected = false
+    /// Non-nil when the line can be selected (click the gutter).
+    var onSelect: (() -> Void)? = nil
 
     var body: some View {
-        if line.kind == .hunk || line.kind == .meta {
-            HunkRow(line: line, gutters: 2)
-        } else {
+        HStack(alignment: .top, spacing: 0) {
             HStack(alignment: .top, spacing: 0) {
                 gutter(line.oldNumber, line.kind)
                 gutter(line.newNumber, line.kind)
                 Text(marker(line.kind)).frame(width: 20).padding(.vertical, 1.5)
-                content(line, styled)
             }
-            .font(diffFont)
-            .background(lineColor(line.kind))
+            .contentShape(Rectangle())
+            .onTapGesture { onSelect?() }
+            .help(onSelect == nil ? "" : "Click to select line · ⇧-click to select a range")
+            content(line, styled)
         }
+        .font(.system(size: fontSize, design: .monospaced))
+        .background(lineColor(line.kind))
+        .overlay { if isSelected { Color.accentColor.opacity(0.16).allowsHitTesting(false) } }
+        .overlay(alignment: .leading) { if isSelected { Rectangle().fill(Color.accentColor).frame(width: 3) } }
     }
 }
 
 /// Side-by-side row: old version left, new version right.
 struct SplitDiffRowView: View {
+    @Environment(\.diffFontSize) private var fontSize
     let row: SplitDiffRow
     let styles: [Int: AttributedString]
 
     var body: some View {
         if let full = row.full {
-            HunkRow(line: full, gutters: 1)
+            HunkRow(line: full, gutters: 1) { EmptyView() }
         } else {
             HStack(alignment: .top, spacing: 0) {
                 side(row.left, number: row.left?.oldNumber)
                 Rectangle().fill(Theme.separator).frame(width: 1)
                 side(row.right, number: row.right?.newNumber)
             }
-            .font(diffFont)
+            .font(.system(size: fontSize, design: .monospaced))
         }
     }
 

@@ -50,6 +50,7 @@ struct TopBarView: View {
         }
         .frame(height: 52)
         .background(Theme.barBackground)
+        .overlay(alignment: .bottom) { Rectangle().fill(Theme.barDivider).frame(height: 1) }
     }
 
     private var title: String {
@@ -78,12 +79,14 @@ struct TopBarButton: View {
     let width: CGFloat
     var isBusy = false
     let action: () -> Void
+    @State private var hovering = false
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Group {
-                    if isBusy { ProgressView().controlSize(.small).tint(.white) } else { Image(systemName: icon) }
+                    if isBusy { ProgressView().controlSize(.small) } else { Image(systemName: icon).symbolRenderingMode(.hierarchical) }
                 }
                 .font(.system(size: 16))
                 .frame(width: 22)
@@ -94,12 +97,16 @@ struct TopBarButton: View {
                 Spacer(minLength: 4)
                 if showsChevron { Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)) }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 14)
             .frame(width: width, height: 52)
+            .background(hovering && isEnabled ? Theme.barHover : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(Theme.barText)
+        .opacity(isEnabled ? 1 : 0.5)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.barDivider).frame(width: 1) }
     }
 }

@@ -16,6 +16,10 @@ struct ContentView: View {
             content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Theme.paneBackground)
+        .overlay(alignment: .bottom) {
+            if let toast = store.toast { ToastView(toast: toast).id(toast.id) }
+        }
+        .animation(.spring(duration: 0.3), value: store.toast)
         .task { await store.refreshStatus() }
         .alert("Git Plus", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") { store.errorMessage = nil }

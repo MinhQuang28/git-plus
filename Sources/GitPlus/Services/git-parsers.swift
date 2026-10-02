@@ -41,6 +41,7 @@ enum GitParsers {
                 }
             } else if !line.hasPrefix("#") {
                 s.changedFiles += 1
+                if line.hasPrefix("u ") { s.conflicts += 1 }
             }
         }
         return s
@@ -64,23 +65,37 @@ enum GitParsers {
         return files
     }
 
-    /// Parses `git status --porcelain=v1 -z`. Renames are `R  new\0old\0`.
-    static func workingChanges(_ output: String) -> [ChangedFile] {
-        var files: [ChangedFile] = []
+    private static let conflictCodes: Set<String> = ["DD", "AU", "UD", "UA", "DU", "AA", "UU"]
+
+    /// Parses `git status --porcelain=v1 -z` into staged / unstaged / conflicted lists.
+    /// Index renames are encoded as `R  new\0old\0`.
+    static func workingTree(_ output: String) -> WorkingTree {
+        var tree = WorkingTree()
         var entries = output.split(separator: "\0", omittingEmptySubsequences: true).makeIterator()
         while let entry = entries.next() {
-            guard entry.count > 3 else { continue }
-            let x = entry[entry.startIndex], y = entry[entry.index(after: entry.startIndex)]
+            guard entry.count >= 4 else { continue }
+            let x = String(entry.prefix(1)), y = String(entry.dropFirst().prefix(1))
             let path = String(entry.dropFirst(3))
+            if x == "?" {
+                tree.unstaged.append(ChangedFile(status: "?", path: path, oldPath: nil, area: .unstaged))
+                continue
+            }
+            if conflictCodes.contains(x + y) {
+                tree.conflicted.append(ChangedFile(status: "U", path: path, oldPath: nil, area: .conflicted))
+                continue
+            }
             if x == "R" || x == "C" {
-                files.append(ChangedFile(status: "R", path: path, oldPath: entries.next().map(String.init)))
-            } else if x == "?" {
-                files.append(ChangedFile(status: "?", path: path, oldPath: nil))
-            } else {
-                let code = [x, y].first { $0 != " " } ?? "M"
-                files.append(ChangedFile(status: x == "D" || y == "D" ? "D" : x == "A" ? "A" : String(code == "U" ? "M" : code), path: path, oldPath: nil))
+                tree.staged.append(ChangedFile(status: "R", path: path, oldPath: entries.next().map(String.init), area: .staged))
+            } else if x != " " {
+                tree.staged.append(ChangedFile(status: x, path: path, oldPath: nil, area: .staged))
+            }
+            if y != " " {
+                tree.unstaged.append(ChangedFile(status: y, path: path, oldPath: nil, area: .unstaged))
             }
         }
-        return files.sorted { $0.path < $1.path }
+        tree.staged.sort { $0.path < $1.path }
+        tree.unstaged.sort { $0.path < $1.path }
+        tree.conflicted.sort { $0.path < $1.path }
+        return tree
     }
 }
