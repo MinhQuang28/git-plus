@@ -12,8 +12,9 @@ no tokens and talks to no server of its own.
 
 ### Repository groups
 
-- **Groups in the sidebar** — drag repositories between groups, double-click a group to rename it
-  (including *Ungrouped*), collapse groups, filter by name.
+- **Repository switcher** — click *Current Repository* (⌘T) and the repository list drops down over
+  the left column: filter, **Recent**, one section per group, *Ungrouped*. Drag repositories between
+  groups, double-click a group to rename it (including *Ungrouped*), click a group to open its overview.
 - **Auto-Group by Remote** — one click groups repositories by `host/namespace`
   (`github.com/acme`, `gitlab.com/team/backend`, …).
 - **Add a parent folder** — Git Plus scans it (three levels deep) and adds every repository it finds.
@@ -113,7 +114,8 @@ open "build/Git Plus.app"
 
 ## Usage
 
-Select a group or repository in the sidebar. A repository has three views in the toolbar —
+Click **Current Repository** at the top of the left column (or press ⌘T) and pick a repository or
+group. A repository has three views in the toolbar —
 **Changes**, **History** and **Stashes** — next to the branch button, the sync button, the
 pull/merge-request list and **Open in** (your editor, terminal or Finder).
 
@@ -168,7 +170,7 @@ The version lives in one place: `VERSION=` in `build-app.sh`.
 | `Sources/GitPlus/Models/`     | Workspace (groups, repos), git models, remote URL parsing            |
 | `Sources/GitPlus/Services/`   | git / gh / glab CLI wrappers, parsers, patch builder, syntax highlighter |
 | `Sources/GitPlus/Stores/`     | `WorkspaceStore` — state, persistence, git operations across repos   |
-| `Sources/GitPlus/Views/`      | Sidebar, toolbar, changes / history / stash panes, diff views        |
+| `Sources/GitPlus/Views/`      | Repository switcher, toolbar, changes / history / stash panes, diffs |
 | `Tests/GitPlusTests/`         | Unit and integration tests                                           |
 | `build-app.sh`                | Assemble & sign the `.app` bundle                                    |
 | `tools/setup-signing-cert.sh` | Create the stable local signing certificate                          |
