@@ -115,12 +115,25 @@ struct ChangedFile: Identifiable, Hashable, Sendable {
     var additions: Int = 0
     var deletions: Int = 0
     var area: ChangeArea = .revision
+    /// Two-letter porcelain code for conflicts (`UU`, `AA`, `DU`, `UD`, `AU`, `UA`, `DD`).
+    var conflictCode: String? = nil
 
     /// Paths to pass to git (both sides of a rename).
     var pathspec: [String] { [oldPath, path].compactMap { $0 } }
     /// Hunk/line staging only makes sense for modifications of existing files.
     var supportsPartialStaging: Bool { status == "M" && (area == .staged || area == .unstaged) }
+
+    /// For conflicts: the side that deleted the file (its version does not exist), if any.
+    var deletedSide: ConflictSide? {
+        switch conflictCode {
+        case "DU", "UA": .ours     // deleted by us / added only by them
+        case "UD", "AU": .theirs   // deleted by them / added only by us
+        default: nil
+        }
+    }
 }
+
+enum ConflictSide: Sendable { case ours, theirs }
 
 struct WorkingTree: Sendable {
     var staged: [ChangedFile] = []

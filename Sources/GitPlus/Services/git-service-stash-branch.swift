@@ -55,6 +55,10 @@ extension GitService {
 
     func inProgressOperation() async -> GitOperation? {
         guard let dir = try? await git(["rev-parse", "--absolute-git-dir"]).trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return Self.operation(inGitDir: dir)
+    }
+
+    static func operation(inGitDir dir: String) -> GitOperation? {
         let fm = FileManager.default
         func exists(_ name: String) -> Bool { fm.fileExists(atPath: (dir as NSString).appendingPathComponent(name)) }
         if exists("rebase-merge") || exists("rebase-apply") { return .rebase }

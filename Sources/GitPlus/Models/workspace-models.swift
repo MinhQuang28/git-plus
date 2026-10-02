@@ -11,6 +11,8 @@ struct RepoEntry: Identifiable, Codable, Hashable {
     var id = UUID()
     var path: String
     var groupID: UUID?
+    /// Shown in the sidebar's Pinned section (nil = not pinned; optional so older workspace files still decode).
+    var isPinned: Bool?
 
     var url: URL { URL(fileURLWithPath: path) }
     var name: String { url.lastPathComponent }
