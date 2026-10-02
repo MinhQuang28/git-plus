@@ -4,6 +4,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettingsView().tabItem { Label("General", systemImage: "gearshape") }
+            CommitSettingsView().tabItem { Label("Commit", systemImage: "text.badge.checkmark") }
             AccountsSettingsView().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
         }
         .frame(width: 540, height: 480)

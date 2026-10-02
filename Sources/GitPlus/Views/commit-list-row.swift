@@ -15,9 +15,10 @@ struct CommitListRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // Compact: small type and tight spacing so more history fits on screen.
+        VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 6) {
-                Text(commit.subject).font(.rowTitle).lineLimit(1)
+                Text(commit.subject).font(.system(size: 12, weight: .medium)).lineLimit(1)
                 Spacer(minLength: 0)
                 ForEach(badges, id: \.self) { ref in
                     let isTag = ref.hasPrefix("tag: ")
@@ -30,26 +31,26 @@ struct CommitListRow: View {
                         .lineLimit(1)
                 }
             }
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 if let repoName {
                     Text(repoName)
                         .font(.system(size: 10, weight: .semibold))
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background(.tint.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
                 }
-                AvatarView(name: commit.author, email: commit.email, size: 16)
+                AvatarView(name: commit.author, email: commit.email, size: 13)
                 Text("\(commit.author) • \(RelativeTime.string(commit.date))")
-                    .font(.callout)
+                    .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 if isHead {
-                    Text("HEAD").font(.caption2.weight(.bold)).foregroundStyle(Color.accentColor)
+                    Text("HEAD").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.accentColor)
                         .padding(.horizontal, 4).padding(.vertical, 1)
                         .overlay(Capsule().stroke(Color.accentColor.opacity(0.6)))
                 }
             }
         }
-        .padding(.vertical, 5)
+        .padding(.vertical, 2)
         .help("\(commit.shortHash) — \(commit.subject)\n\(commit.author) <\(commit.email)>\n\(commit.date.formatted(date: .abbreviated, time: .shortened))")
     }
 }

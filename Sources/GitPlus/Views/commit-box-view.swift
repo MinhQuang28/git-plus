@@ -8,6 +8,8 @@ struct CommitBoxView: View {
     let stagedCount: Int
     let hasChanges: Bool
 
+    @AppStorage(CommitDefaults.summaryKey) private var defaultSummary = ""
+    @AppStorage(CommitDefaults.descriptionKey) private var defaultDetails = ""
     @State private var summary = ""
     @State private var details = ""
     @State private var amend = false
@@ -117,14 +119,26 @@ struct CommitBoxView: View {
         }
         .padding(Spacing.m)
         .task { await loadAuthors() }
+        .onAppear { if summary.isEmpty && details.isEmpty { resetToDefaults() } }
         .onChange(of: amend) { _, on in
-            guard on, summary.isEmpty else { return }
+            // Load the last message unless the user has typed something beyond the defaults.
+            guard on, isUntouched else { return }
             Task {
                 let last = await GitService(repo: repo.url).lastCommitMessage()
                 summary = last.summary
                 details = last.description
             }
         }
+    }
+
+    private var isUntouched: Bool {
+        (summary.isEmpty || summary == defaultSummary) && (details.isEmpty || details == defaultDetails)
+    }
+
+    /// Prefills the box with the "Default commit message" from Settings → Commit.
+    private func resetToDefaults() {
+        summary = defaultSummary
+        details = defaultDetails
     }
 
     private var pushTitle: String {
@@ -197,7 +211,8 @@ struct CommitBoxView: View {
                 try await $0.commit(summary: s, description: d, amend: isAmend)
             }
             guard ok else { return }
-            summary = ""; details = ""; amend = false
+            amend = false
+            resetToDefaults()
             if push { await store.push(id, force: isAmend && !needsUpstream) }
         }
     }
