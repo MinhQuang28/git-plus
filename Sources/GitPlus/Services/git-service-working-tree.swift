@@ -11,8 +11,8 @@ extension GitService {
     }
 
     /// Staged → HEAD vs index; unstaged → index vs worktree; untracked → /dev/null vs file.
-    func workingDiff(_ file: ChangedFile, context: Int = 3) async throws -> String {
-        let common = ["--no-color", "--no-ext-diff", "-U\(context)"]
+    func workingDiff(_ file: ChangedFile, context: Int = 3, ignoreWhitespace: Bool = false) async throws -> String {
+        let common = ["--no-color", "--no-ext-diff", "-U\(context)"] + (ignoreWhitespace ? ["-w"] : [])
         switch (file.area, file.status) {
         case (.unstaged, "?"):
             // Exit code 1 means "differences found" for --no-index.
@@ -95,11 +95,13 @@ extension GitService {
 
     /// Resolves a conflicted file with one side, then marks it resolved.
     func resolve(_ file: ChangedFile, useOurs: Bool) async throws {
-        _ = try await git(["checkout", useOurs ? "--ours" : "--theirs", "--", file.path])
-        try await markResolved(file)
+        try await resolve(file, side: useOurs ? .ours : .theirs)
     }
 
-    func markResolved(_ file: ChangedFile) async throws { _ = try await git(["add", "--", file.path]) }
+    func markResolved(_ file: ChangedFile) async throws {
+        // A side that deleted the file leaves nothing to add; `add -A` records the deletion too.
+        _ = try await git(["add", "-A", "--", file.path])
+    }
 
     func git(_ args: [String]) async throws -> String {
         try await ProcessRunner.run("git", args, in: repo)

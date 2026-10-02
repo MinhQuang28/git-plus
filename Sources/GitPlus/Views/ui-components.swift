@@ -75,6 +75,7 @@ struct IconButton: View {
         .buttonStyle(.plain)
         .foregroundStyle(role == .destructive ? Theme.deleted : .secondary)
         .help(help)
+        .accessibilityLabel(help)
         .onHover { hovering = $0 }
     }
 }
@@ -100,20 +101,144 @@ struct SectionHeader<Actions: View>: View {
     }
 }
 
-/// Transient confirmation shown at the bottom of the window.
+/// Transient confirmation shown at the bottom of the window, optionally with an action (e.g. Undo).
 struct ToastView: View {
+    @Environment(WorkspaceStore.self) private var store
     let toast: WorkspaceStore.Toast
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Spacing.s) {
             Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                 .foregroundStyle(toast.isError ? Theme.deleted : Theme.added)
-            Text(toast.message).font(.system(size: 13, weight: .medium)).lineLimit(2)
+            Text(toast.message).font(.body.weight(.medium)).lineLimit(2)
+            if let title = toast.actionTitle, let action = toast.action {
+                Divider().frame(height: 16)
+                Button(title) {
+                    store.dismissToast()
+                    action()
+                }
+                .buttonStyle(.borderless)
+                .fontWeight(.semibold)
+            }
         }
-        .padding(.horizontal, 16).padding(.vertical, 10)
+        .padding(.horizontal, Spacing.l).padding(.vertical, 10)
         .glassEffect(.regular, in: .capsule)
         .padding(.bottom, 20)
         .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+}
+
+/// Non-blocking error banner with an explanation and a one-click fix when git's error is recognised.
+struct FailureBanner: View {
+    @Environment(WorkspaceStore.self) private var store
+    let failure: WorkspaceStore.Failure
+    @State private var showDetail = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
+                Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(Theme.deleted)
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    Text(failure.title).font(.headline)
+                    Text(failure.hint?.explanation ?? firstLine).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: Spacing.s)
+                IconButton(symbol: "xmark", help: "Dismiss") { store.failure = nil }
+            }
+            if showDetail {
+                ScrollView {
+                    Text(failure.detail).font(.mono).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 140)
+                .padding(Spacing.s)
+                .background(RoundedRectangle(cornerRadius: Radius.s).fill(Theme.headerBackground))
+            }
+            HStack(spacing: Spacing.s) {
+                Button(showDetail ? "Hide Details" : "Show Details") { showDetail.toggle() }
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(failure.detail, forType: .string)
+                }
+                Spacer()
+                fixes
+            }
+            .controlSize(.small)
+            .buttonStyle(.glass)
+        }
+        .padding(Spacing.m)
+        .frame(maxWidth: 560)
+        .glassEffect(.regular.tint(Theme.deleted.opacity(0.18)), in: .rect(cornerRadius: Radius.l))
+        .padding(.bottom, 20)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    private var firstLine: String {
+        failure.detail.split(separator: "\n").first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }).map(String.init) ?? failure.detail
+    }
+
+    /// Suggested next steps for recognised failures (only when the failure belongs to one repository).
+    @ViewBuilder private var fixes: some View {
+        if let id = failure.repoID, let hint = failure.hint {
+            switch hint {
+            case .pushRejected:
+                fix("Pull with Rebase", prominent: true) { await store.pull([id], mode: .rebase) }
+                fix("Pull with Merge") { await store.pull([id], mode: .merge) }
+            case .diverged:
+                fix("Pull with Rebase", prominent: true) { await store.pull([id], mode: .rebase) }
+                fix("Pull with Merge") { await store.pull([id], mode: .merge) }
+            case .staleLease:
+                fix("Fetch", prominent: true) { await store.fetch([id]) }
+            case .noUpstream:
+                fix("Publish Branch", prominent: true) { await store.push(id) }
+            case .localChanges:
+                fix("Stash Changes", prominent: true) {
+                    _ = await store.perform(id, "stash", success: "Changes stashed") { try await $0.stash(message: "", includeUntracked: true) }
+                }
+            case .authentication, .lockFile, .conflicts, .identity:
+                EmptyView()
+            }
+        }
+    }
+
+    @ViewBuilder private func fix(_ title: String, prominent: Bool = false, _ action: @escaping @MainActor () async -> Void) -> some View {
+        let button = Button(title) {
+            store.failure = nil
+            Task { await action() }
+        }
+        if prominent { button.buttonStyle(.glassProminent) } else { button.buttonStyle(.glass) }
+    }
+}
+
+/// Small capsule with an icon and text (status header, cards).
+struct StatusPill: View {
+    let text: String
+    var symbol: String? = nil
+    var tint: Color = .secondary
+
+    var body: some View {
+        HStack(spacing: Spacing.xs) {
+            if let symbol { Image(systemName: symbol) }
+            Text(text).monospacedDigit()
+        }
+        .font(.caption.weight(.medium))
+        .padding(.horizontal, Spacing.s).padding(.vertical, Spacing.xxs + 1)
+        .background(Capsule().fill(tint.opacity(0.14)))
+        .foregroundStyle(tint)
+        .lineLimit(1)
+    }
+}
+
+/// Keyboard shortcut hint shown in menus / the command palette.
+struct KeyboardHint: View {
+    let keys: String
+
+    var body: some View {
+        Text(keys)
+            .font(.caption.monospaced())
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, Spacing.xs + 1).padding(.vertical, 1)
+            .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.separator))
     }
 }
 

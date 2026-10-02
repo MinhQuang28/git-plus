@@ -18,7 +18,7 @@ struct StashListView: View {
         .overlay {
             if stashes.isEmpty {
                 ContentUnavailableView("No stashes", systemImage: "tray",
-                                       description: Text("Use “Stash all changes” in the Changes tab to set work aside."))
+                                       description: Text("Use “Stash Changes…” in the Changes tab to set work aside."))
             }
         }
     }
@@ -67,6 +67,7 @@ struct OperationBannerView: View {
     let repo: RepoEntry
     let operation: GitOperation
     let conflicts: Int
+    var onResolve: () -> Void = {}
     @State private var confirmAbort = false
 
     var body: some View {
@@ -76,7 +77,7 @@ struct OperationBannerView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(operation.title) in progress").font(.system(size: 13, weight: .semibold))
                 Text(conflicts > 0
-                     ? "\(conflicts) conflicted file\(conflicts == 1 ? "" : "s"). Resolve in the Changes tab (Use Ours / Use Theirs / Mark as Resolved), then continue."
+                     ? "\(conflicts) conflicted file\(conflicts == 1 ? "" : "s"). Pick which branch's version to keep for each file, then continue."
                      : "All conflicts resolved. Continue to finish the \(operation.title.lowercased()).")
                     .font(.system(size: 12)).foregroundStyle(.secondary)
             }
@@ -85,9 +86,13 @@ struct OperationBannerView: View {
                 Button("Skip Commit") { run("skip") { try await $0.skipRebaseCommit() } }
             }
             Button("Abort…", role: .destructive) { confirmAbort = true }
+            if conflicts > 0 {
+                Button("Resolve Conflicts…", action: onResolve).buttonStyle(.glassProminent)
+            }
             Button("Continue") { run("continue \(operation.rawValue)", "\(operation.title) completed") { try await $0.continueOperation(operation) } }
                 .buttonStyle(.glassProminent)
                 .disabled(conflicts > 0)
+                .opacity(conflicts > 0 ? 0.6 : 1)
         }
         .buttonStyle(.glass)
         .padding(.horizontal, 14).padding(.vertical, 10)

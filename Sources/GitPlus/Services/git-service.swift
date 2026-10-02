@@ -11,30 +11,45 @@ struct GitService: Sendable {
     // MARK: Status
 
     func status() async throws -> RepoStatus {
-        let out = try await git(["status", "--porcelain=v2", "--branch"])
-        var status = GitParsers.status(out)
-        status.remote = await remote()
-        status.lastFetched = await lastFetched()
-        status.operation = await inProgressOperation()
+        // Three processes in parallel: porcelain status, git dir + FETCH_HEAD path, remote URLs.
+        async let porcelain = git(["status", "--porcelain=v2", "--branch"])
+        async let paths = git(["rev-parse", "--absolute-git-dir", "--git-path", "FETCH_HEAD"])
+        async let remotes = remoteURLs()
+        var status = GitParsers.status(try await porcelain)
+        let lines = ((try? await paths) ?? "").split(separator: "\n").map(String.init)
+        if let dir = lines.first {
+            status.operation = Self.operation(inGitDir: dir)
+            if lines.count > 1 {
+                let fetchHead = lines[1].hasPrefix("/") ? URL(fileURLWithPath: lines[1]) : repo.appendingPathComponent(lines[1])
+                status.lastFetched = (try? FileManager.default.attributesOfItem(atPath: fetchHead.path))?[.modificationDate] as? Date
+            }
+        }
+        status.remote = Self.preferredRemote(await remotes).flatMap { RemoteInfo.parse($0.url) }
         return status
     }
 
-    private func lastFetched() async -> Date? {
-        guard let rel = try? await git(["rev-parse", "--git-path", "FETCH_HEAD"]) else { return nil }
-        let path = rel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : repo.appendingPathComponent(path)
-        return (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+    /// `remote.<name>.url` for every configured remote, in config order.
+    func remoteURLs() async -> [(name: String, url: String)] {
+        let out = (try? await ProcessRunner.run("git", ["config", "--get-regexp", "^remote\\..*\\.url$"], in: repo, okCodes: [0, 1])) ?? ""
+        return out.split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
+            guard parts.count == 2, parts[0].hasPrefix("remote."), parts[0].hasSuffix(".url") else { return nil }
+            return (name: String(parts[0].dropFirst("remote.".count).dropLast(".url".count)), url: parts[1])
+        }
+    }
+
+    /// `origin` when it exists, otherwise the first remote.
+    static func preferredRemote(_ remotes: [(name: String, url: String)]) -> (name: String, url: String)? {
+        remotes.first { $0.name == "origin" } ?? remotes.first
     }
 
     /// Remote of `origin`, falling back to the first configured remote.
     func remote() async -> RemoteInfo? {
-        if let url = try? await git(["remote", "get-url", "origin"]), let info = RemoteInfo.parse(url) {
-            return info
-        }
-        guard let first = (try? await git(["remote"]))?.split(separator: "\n").first,
-              let url = try? await git(["remote", "get-url", String(first)]) else { return nil }
-        return RemoteInfo.parse(url)
+        Self.preferredRemote(await remoteURLs()).flatMap { RemoteInfo.parse($0.url) }
     }
+
+    /// Name of the remote used for publishing (`origin`, else the first one).
+    func defaultRemoteName() async -> String? { Self.preferredRemote(await remoteURLs())?.name }
 
     /// Local and remote branches, most recently committed first.
     func branches() async throws -> BranchList {
@@ -68,16 +83,43 @@ struct GitService: Sendable {
     // MARK: History
 
     /// `ref == nil` → current HEAD. `allRefs` → every branch (like `git log --all`).
-    func log(ref: String? = nil, allRefs: Bool = false, limit: Int = 300, search: String? = nil) async throws -> [Commit] {
+    /// `search` → message grep; `author` and `paths` narrow it down further. `skip` pages through history.
+    func log(ref: String? = nil, allRefs: Bool = false, limit: Int = 300, skip: Int = 0, search: String? = nil,
+             author: String? = nil, paths: [String] = [], follow: Bool = false) async throws -> [Commit] {
         var args = ["log", "--format=\(GitParsers.logFormat)", "--date-order", "-n", String(limit)]
-        if let search, !search.isEmpty { args += ["-i", "--grep=\(search)"] }
+        if skip > 0 { args.append("--skip=\(skip)") }
+        if let search, !search.isEmpty { args += ["-i", "--fixed-strings", "--grep=\(search)"] }
+        if let author, !author.isEmpty { args += ["-i", "--author=\(author)"] }
+        if follow { args.append("--follow") }
         if allRefs { args.append("--all") } else if let ref { args.append(ref) }
         args.append("--")
+        args += paths
         do {
             return GitParsers.commits(try await git(args))
-        } catch let error as CommandError where error.stderr.contains("does not have any commits") {
+        } catch let error as CommandError where error.stderr.contains("does not have any commits") || error.stderr.contains("unknown revision") {
             return []
         }
+    }
+
+    /// Commits matching a history search. Plain text matches the message *or* the author
+    /// (git ANDs `--grep` with `--author`, so the two are queried separately and merged).
+    func search(_ query: HistoryQuery, ref: String? = nil, allRefs: Bool = false, limit: Int = 300) async throws -> [Commit] {
+        if query.text.isEmpty {
+            return try await log(ref: ref, allRefs: allRefs, limit: limit, author: query.author, paths: query.paths)
+        }
+        async let byMessage = log(ref: ref, allRefs: allRefs, limit: limit, search: query.text, author: query.author, paths: query.paths)
+        async let byAuthor = authorMatches(query, ref: ref, allRefs: allRefs, limit: limit)
+        var seen = Set<String>()
+        var merged = (try await byMessage) + (try await byAuthor)
+        if query.looksLikeHash, let hit = try? await git(["log", "-1", "--format=\(GitParsers.logFormat)", query.text, "--"]) {
+            merged = GitParsers.commits(hit) + merged
+        }
+        return merged.filter { seen.insert($0.hash).inserted }.sorted { $0.date > $1.date }
+    }
+
+    private func authorMatches(_ query: HistoryQuery, ref: String?, allRefs: Bool, limit: Int) async throws -> [Commit] {
+        guard query.author == nil else { return [] }
+        return try await log(ref: ref, allRefs: allRefs, limit: limit, author: query.text, paths: query.paths)
     }
 
     // MARK: Diff
@@ -89,10 +131,11 @@ struct GitService: Sendable {
         return GitParsers.changedFiles(nameStatus: try await names, numstat: try await stats)
     }
 
-    func diff(_ target: DiffTarget, file: ChangedFile, context: Int = 3) async throws -> String {
+    func diff(_ target: DiffTarget, file: ChangedFile, context: Int = 3, ignoreWhitespace: Bool = false) async throws -> String {
         var paths = [file.path]
         if let old = file.oldPath { paths.insert(old, at: 0) }
-        return try await git(["diff", "-M", "--no-color", "--no-ext-diff", "-U\(context)", target.base, target.head, "--"] + paths)
+        let ws = ignoreWhitespace ? ["-w"] : []
+        return try await git(["diff", "-M", "--no-color", "--no-ext-diff", "-U\(context)"] + ws + [target.base, target.head, "--"] + paths)
     }
 
     func commitMessage(_ hash: String) async throws -> String {
@@ -102,9 +145,16 @@ struct GitService: Sendable {
     // MARK: Network
 
     func fetch() async throws { _ = try await git(["fetch", "--all", "--prune"]) }
-    func pull() async throws { _ = try await git(["pull", "--ff-only"]) }
-    /// Pushes the current branch; sets upstream on first push.
-    func push(setUpstream: Bool) async throws {
-        _ = try await git(setUpstream ? ["push", "-u", "origin", "HEAD"] : ["push"])
+    func pull(_ mode: PullMode = .fastForward) async throws { _ = try await git(["-c", "core.editor=true", "pull"] + mode.args) }
+
+    /// Pushes the current branch; sets upstream on first push. `force` uses `--force-with-lease`,
+    /// which refuses to overwrite remote commits you haven't fetched.
+    func push(setUpstream: Bool, force: Bool = false) async throws {
+        var args = ["push"]
+        if force { args.append("--force-with-lease") }
+        if setUpstream {
+            args += ["-u", await defaultRemoteName() ?? "origin", "HEAD"]
+        }
+        _ = try await git(args)
     }
 }

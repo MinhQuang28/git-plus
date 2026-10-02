@@ -30,8 +30,12 @@ struct SyncBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            if status.behind > 0 { Text("↓\(status.behind)").foregroundStyle(.orange) }
-            if status.ahead > 0 { Text("↑\(status.ahead)").foregroundStyle(.blue) }
+            if status.operation != nil || status.conflicts > 0 {
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.conflict)
+                    .help(status.operation.map { "\($0.title) in progress" } ?? "Conflicts")
+            }
+            if status.behind > 0 { Text("↓\(status.behind)").foregroundStyle(Theme.behind) }
+            if status.ahead > 0 { Text("↑\(status.ahead)").foregroundStyle(Theme.ahead) }
             if status.changedFiles > 0 {
                 Circle().fill(.yellow).frame(width: 7, height: 7).help("\(status.changedFiles) uncommitted change(s)")
             }
@@ -75,8 +79,9 @@ struct RepoContextMenu: View {
 
     var body: some View {
         Button("Fetch") { Task { await store.fetch([repo.id]) } }
-        Button("Pull (fast-forward)") { Task { await store.pull([repo.id]) } }
+        Button("Pull") { Task { await store.pull([repo.id]) } }
         Divider()
+        Button(repo.isPinned == true ? "Unpin" : "Pin to Top") { store.togglePin(repo.id) }
         Menu("Move to Group") {
             ForEach(store.groups) { g in Button(g.name) { store.move(repoIDs: [repo.id], to: g.id) } }
             Divider()

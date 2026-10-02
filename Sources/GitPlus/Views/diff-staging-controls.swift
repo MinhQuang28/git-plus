@@ -77,6 +77,10 @@ struct DiffHeaderView: View {
     @Binding var syntaxHighlight: Bool
     @Binding var fullContext: Bool
     @Binding var fontSize: Double
+    @Binding var ignoreWhitespace: Bool
+    var hunkCount = 0
+    var currentHunk = 0
+    var jump: (Int) -> Void = { _ in }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -89,6 +93,19 @@ struct DiffHeaderView: View {
             }
             .lineLimit(1).truncationMode(.head)
             Spacer()
+            if ignoreWhitespace {
+                StatusPill(text: "whitespace ignored", symbol: "eye.slash")
+                    .help("Hunk and line staging is off while whitespace is ignored")
+            }
+            if hunkCount > 1 {
+                HStack(spacing: 0) {
+                    IconButton(symbol: "chevron.up", help: "Previous change (⌥⌘↑)") { jump(-1) }
+                        .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                    Text("\(currentHunk + 1)/\(hunkCount)").font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(minWidth: 34)
+                    IconButton(symbol: "chevron.down", help: "Next change (⌥⌘↓)") { jump(1) }
+                        .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                }
+            }
             Picker("", selection: $mode) {
                 Image(systemName: "rectangle.grid.1x2").help("Unified").tag(DiffDisplayMode.unified)
                 Image(systemName: "rectangle.split.2x1").help("Split").tag(DiffDisplayMode.split)
@@ -97,6 +114,7 @@ struct DiffHeaderView: View {
             Menu {
                 Toggle("Syntax Highlighting", isOn: $syntaxHighlight)
                 Toggle("Show Whole File", isOn: $fullContext)
+                Toggle("Ignore Whitespace", isOn: $ignoreWhitespace)
                 Divider()
                 Button("Larger Text") { fontSize = min(fontSize + 1, 22) }
                 Button("Smaller Text") { fontSize = max(fontSize - 1, 9) }

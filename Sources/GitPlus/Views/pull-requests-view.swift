@@ -1,9 +1,12 @@
+import AppKit
 import SwiftUI
 
 /// Compact popover listing GitHub PRs (via `gh`) or GitLab MRs (via `glab`).
 struct PullRequestsView: View {
-    let repoURL: URL
+    @Environment(WorkspaceStore.self) private var store
+    let repo: RepoEntry
     let provider: GitProvider
+    var dismiss: () -> Void = {}
 
     @State private var state = "open"
     @State private var items: [PullRequestItem] = []
@@ -34,6 +37,16 @@ struct PullRequestsView: View {
                 Spacer()
                 if isLoading { ProgressView().controlSize(.small) }
                 IconButton(symbol: "arrow.clockwise", help: "Refresh (via \(provider.cliName ?? "CLI"))") { Task { await load() } }
+                Button {
+                    Task {
+                        do { try await service.createForCurrentBranch() } catch { self.error = error.localizedDescription }
+                    }
+                } label: {
+                    Label("New", systemImage: "plus")
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.small)
+                .help("Open the new \(provider == .gitlab ? "merge" : "pull") request form for the current branch in your browser (push it first)")
             }
             Picker("", selection: $state) {
                 Text("Open").tag("open")
@@ -116,6 +129,16 @@ struct PullRequestsView: View {
         .buttonStyle(.plain)
         .hoverHighlight()
         .help("Open \(prefix)\(item.number) in the browser")
+        .contextMenu {
+            Button("Check Out \(item.sourceBranch)") { checkout(item) }
+            if let url = item.url {
+                Button("Open in Browser") { NSWorkspace.shared.open(url) }
+                Button("Copy Link") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                }
+            }
+        }
     }
 
     private func icon(_ item: PullRequestItem) -> String {
@@ -134,11 +157,21 @@ struct PullRequestsView: View {
         }
     }
 
+    private var service: ProviderCLIService { ProviderCLIService(repo: repo.url, provider: provider) }
+
+    private func checkout(_ item: PullRequestItem) {
+        let service = self.service, label = "checkout \(prefix)\(item.number)"
+        dismiss()
+        Task {
+            await store.perform(repo.id, label, success: "Checked out \(item.sourceBranch)") { _ in try await service.checkout(item.number) }
+        }
+    }
+
     private func load() async {
         isLoading = true
         defer { isLoading = false }
         do {
-            items = try await ProviderCLIService(repo: repoURL, provider: provider).pullRequests(state: state)
+            items = try await service.pullRequests(state: state)
             error = nil
         } catch {
             items = []

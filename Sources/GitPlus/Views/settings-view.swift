@@ -17,6 +17,9 @@ struct GeneralSettingsView: View {
     @AppStorage("diffFontSize") private var fontSize = 12.5
     @AppStorage("syntaxHighlight") private var syntaxHighlight = true
     @AppStorage("diffMode") private var mode = DiffDisplayMode.unified
+    @AppStorage("pullMode") private var pullMode = PullMode.fastForward.rawValue
+    @AppStorage("diffIgnoreWhitespace") private var ignoreWhitespace = false
+    @AppStorage("historyGraph") private var historyGraph = true
 
     var body: some View {
         Form {
@@ -32,12 +35,19 @@ struct GeneralSettingsView: View {
             }
             Section("Sync") {
                 Toggle("Fetch the open repository every 10 minutes", isOn: $autoFetch)
+                Picker("Pull", selection: $pullMode) {
+                    ForEach(PullMode.allCases, id: \.self) { Text($0.title).tag($0.rawValue) }
+                }
+                Text("Used by Pull and Pull All. When a branch has diverged, Git Plus always asks how to combine it.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Diff") {
                 Picker("Layout", selection: $mode) {
                     ForEach(DiffDisplayMode.allCases, id: \.self) { Text($0.rawValue) }
                 }
                 Toggle("Syntax highlighting", isOn: $syntaxHighlight)
+                Toggle("Ignore whitespace changes", isOn: $ignoreWhitespace)
+                Toggle("Show the commit graph in History", isOn: $historyGraph)
                 LabeledContent("Text size") {
                     HStack {
                         Slider(value: $fontSize, in: 9...22, step: 0.5).frame(width: 180)

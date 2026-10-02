@@ -49,7 +49,7 @@ struct GroupWorkspaceView: View {
                 Label("Pull All", systemImage: "arrow.down.circle").labelStyle(.titleAndIcon)
             }
             .disabled(ids.isEmpty || busy)
-            .help("Fast-forward every repository in this group")
+            .help("Pull every repository in this group (Settings → Sync sets fast-forward / rebase / merge)")
         }
     }
 
@@ -75,7 +75,7 @@ struct GroupWorkspaceView: View {
 
     @ViewBuilder private var main: some View {
         if tab == 0 {
-            GroupDashboardTable(repos: repos, selection: $selection)
+            GroupDashboardView(repos: repos, activity: activity, selection: $selection)
         } else if let item = activity.first(where: { $0.id == selectedActivity }), let repo = store.repo(item.repoID) {
             CommitDetailView(repoURL: repo.url, target: .commit(item.commit), commit: item.commit, remote: store.statuses[repo.id]?.remote)
                 .id(item.id)

@@ -49,12 +49,18 @@ extension GitService {
     }
 
     func merge(_ branch: String) async throws { _ = try await git(["merge", "--no-edit", branch]) }
+    /// Stages the combined changes of `branch` without committing (`merge --squash`).
+    func mergeSquash(_ branch: String) async throws { _ = try await git(["merge", "--squash", branch]) }
     func rebase(onto branch: String) async throws { _ = try await git(["-c", "core.editor=true", "rebase", branch]) }
 
     // MARK: In-progress operations
 
     func inProgressOperation() async -> GitOperation? {
         guard let dir = try? await git(["rev-parse", "--absolute-git-dir"]).trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
+        return Self.operation(inGitDir: dir)
+    }
+
+    static func operation(inGitDir dir: String) -> GitOperation? {
         let fm = FileManager.default
         func exists(_ name: String) -> Bool { fm.fileExists(atPath: (dir as NSString).appendingPathComponent(name)) }
         if exists("rebase-merge") || exists("rebase-apply") { return .rebase }

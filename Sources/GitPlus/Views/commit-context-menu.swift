@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Actions that need extra input before running.
 enum CommitRequest: Identifiable {
-    case reset(Commit, ResetMode), branch(Commit), tag(Commit), cherryPick(Commit)
+    case reset(Commit, ResetMode), branch(Commit), tag(Commit), cherryPick(Commit), reword(Commit), rebase(Commit)
 
     var id: String {
         switch self {
@@ -11,6 +11,16 @@ enum CommitRequest: Identifiable {
         case .branch(let c): "branch" + c.hash
         case .tag(let c): "tag" + c.hash
         case .cherryPick(let c): "pick" + c.hash
+        case .reword(let c): "reword" + c.hash
+        case .rebase(let c): "rebase" + c.hash
+        }
+    }
+
+    /// Requests presented as sheets rather than alerts.
+    var usesSheet: Bool {
+        switch self {
+        case .cherryPick, .reword, .rebase: true
+        default: false
         }
     }
 }
@@ -22,12 +32,21 @@ struct CommitContextMenu: View {
     let commit: Commit
     /// Reset is only offered for ancestors of HEAD that are not HEAD itself.
     let canReset: Bool
+    var isHead = false
     let remote: RemoteInfo?
     let request: (CommitRequest) -> Void
 
     private var tags: [String] { commit.refs.filter { $0.hasPrefix("tag: ") }.map { String($0.dropFirst(5)) } }
 
     var body: some View {
+        if isHead {
+            Button("Undo Commit") { RepoActions.undoLastCommit(store, repo.id) }
+                .help("Moves the commit's changes back to the staging area")
+        }
+        Button("Edit Message…") { request(.reword(commit)) }
+        Button("Interactive Rebase from Here…") { request(.rebase(commit)) }
+            .disabled(isHead && commit.parents.isEmpty)
+        Divider()
         Menu("Reset Current Branch to Here") {
             ForEach(ResetMode.allCases, id: \.self) { mode in
                 Button("\(mode.rawValue.capitalized) — \(mode.summary)") { request(.reset(commit, mode)) }
@@ -69,7 +88,7 @@ struct CommitRequestPresenter: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .alert(title, isPresented: isPresented(for: { if case .cherryPick = $0 { return false }; return true })) {
+            .alert(title, isPresented: isPresented(for: { !$0.usesSheet })) {
                 if case .reset(_, let mode) = request {
                     Button("\(mode.rawValue.capitalized) Reset", role: mode == .hard ? .destructive : nil) { run() }
                 } else {
@@ -82,9 +101,12 @@ struct CommitRequestPresenter: ViewModifier {
                     Text("Moves the current branch to \(c.shortHash). \(mode.summary).")
                 }
             }
-            .sheet(isPresented: isPresented(for: { if case .cherryPick = $0 { return true }; return false })) {
-                if case .cherryPick(let c) = request {
-                    CherryPickSheet(repo: repo, commit: c) { request = nil }
+            .sheet(isPresented: isPresented(for: { $0.usesSheet })) {
+                switch request {
+                case .cherryPick(let c): CherryPickSheet(repo: repo, commit: c) { request = nil }
+                case .reword(let c): RewordSheet(repo: repo, commit: c) { request = nil }
+                case .rebase(let c): InteractiveRebaseSheet(repo: repo, from: c) { request = nil }
+                default: EmptyView()
                 }
             }
     }
@@ -114,8 +136,16 @@ struct CommitRequestPresenter: ViewModifier {
             case .branch(let c):
                 await store.perform(repo.id, "create branch", success: "Created branch \(n)") { try await $0.createBranch(n, at: c.hash) }
             case .tag(let c):
-                await store.perform(repo.id, "create tag", success: "Created tag \(n)") { try await $0.createTag(n, at: c.hash) }
-            case .cherryPick: break
+                let ok = await store.perform(repo.id, "create tag", success: nil) { try await $0.createTag(n, at: c.hash) }
+                if ok, store.statuses[repo.id]?.remote != nil {
+                    let id = repo.id
+                    store.showToast("Created tag \(n)", actionTitle: "Push Tag") {
+                        Task { await store.perform(id, "push tag", success: "Pushed tag \(n)") { try await $0.pushTag(n) } }
+                    }
+                } else if ok {
+                    store.showToast("Created tag \(n)")
+                }
+            case .cherryPick, .reword, .rebase: break
             }
         }
     }

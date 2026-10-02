@@ -7,6 +7,8 @@ struct CommitListRow: View {
     var repoName: String? = nil
     /// Show branch badges (useful when listing all branches).
     var showsRefs = false
+    /// The checked-out commit (shown with a HEAD marker).
+    var isHead = false
 
     private var badges: [String] {
         commit.refs.filter { $0.hasPrefix("tag: ") || (showsRefs && !$0.hasSuffix("/HEAD") && $0 != "HEAD") }.prefix(3).map { $0 }
@@ -15,7 +17,7 @@ struct CommitListRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(commit.subject).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                Text(commit.subject).font(.rowTitle).lineLimit(1)
                 Spacer(minLength: 0)
                 ForEach(badges, id: \.self) { ref in
                     let isTag = ref.hasPrefix("tag: ")
@@ -37,9 +39,14 @@ struct CommitListRow: View {
                 }
                 AvatarView(name: commit.author, email: commit.email, size: 16)
                 Text("\(commit.author) • \(RelativeTime.string(commit.date))")
-                    .font(.system(size: 12))
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if isHead {
+                    Text("HEAD").font(.caption2.weight(.bold)).foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 4).padding(.vertical, 1)
+                        .overlay(Capsule().stroke(Color.accentColor.opacity(0.6)))
+                }
             }
         }
         .padding(.vertical, 5)

@@ -41,6 +41,15 @@ struct RepositoryListPanel: View {
             .padding(10)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    let pinned = store.pinnedRepos.filter(matches)
+                    if !pinned.isEmpty {
+                        HStack(spacing: 6) {
+                            Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary)
+                            Text("Pinned").font(.system(size: 13, weight: .bold))
+                        }
+                        .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
+                        ForEach(pinned) { row($0) }
+                    }
                     ForEach(store.groups) { group in
                         section(.group(group.id), name: group.name, groupID: group.id)
                     }

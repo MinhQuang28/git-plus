@@ -41,6 +41,21 @@ struct ProviderCLIService: Sendable {
         }
     }
 
+    /// Opens the provider's "new pull / merge request" page for the current branch (must be pushed).
+    func createForCurrentBranch() async throws {
+        guard let cli = provider.cliName else { throw ProviderError.unsupported }
+        guard await ProcessRunner.isAvailable(cli) else { throw ProviderError.missingCLI(cli) }
+        let args = provider == .github ? ["pr", "create", "--web"] : ["mr", "create", "--web", "--fill"]
+        _ = try await ProcessRunner.run(cli, args, in: repo)
+    }
+
+    /// Checks out the branch of a pull / merge request locally.
+    func checkout(_ number: Int) async throws {
+        guard let cli = provider.cliName else { throw ProviderError.unsupported }
+        guard await ProcessRunner.isAvailable(cli) else { throw ProviderError.missingCLI(cli) }
+        _ = try await ProcessRunner.run(cli, [provider == .github ? "pr" : "mr", "checkout", String(number)], in: repo)
+    }
+
     /// Returns `auth status` output of the CLI (stdout+stderr are both informative).
     static func authStatus(_ cli: String) async -> (ok: Bool, message: String) {
         guard await ProcessRunner.isAvailable(cli) else { return (false, "\(cli) is not installed") }

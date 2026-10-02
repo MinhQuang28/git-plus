@@ -22,42 +22,84 @@ no tokens and talks to no server of its own.
   *Fetch All* and *Pull All* (fast-forward only) run in parallel.
 - **Group activity** — recent commits of every repository in the group merged into one timeline.
 
+### Status at a glance
+
+- A **status card** under the repository switcher shows branch → upstream, ahead / behind, changes
+  or conflicts, and the next step when the branch needs attention (*diverged* → Rebase / Merge /
+  Force Push, *unpublished* → Publish).
+- Files edited in other apps show up immediately (FSEvents), not only when the window is activated.
+- Errors appear as a **non-blocking banner** that explains common git failures (rejected push,
+  diverged branches, authentication, lock files, missing identity…) and offers a one-click fix.
+- **Activity** (⌥⌘A) lists every git operation with its duration and full error output.
+- **Command palette** (⌘K): fuzzy-search repositories, groups, branches and every command.
+
 ### Changes
 
 - **Conflicts / Staged / Changes** sections with stage, unstage and discard per file
-  (hover button, double-click, or right-click).
+  (row button, double-click, Space, or right-click). Select several files (⌘ / ⇧-click) for bulk
+  stage / unstage / stash / discard; ⌫ discards the selection. Filter the list by path.
+- **Discard All** moves everything into a stash first, so it can be undone from the toast.
+- **Ignore** untracked files (file, extension or folder) into `.gitignore` from the context menu.
 - **Hunk and line staging** — stage, unstage or discard a whole hunk, or click the line-number
   gutter to pick individual lines (⇧-click selects a range).
-- **Commit box** — summary + description, *Amend last commit* (warns when it is already pushed),
-  stages everything automatically when nothing is staged.
-- **Stashes** — stash with or without untracked files; apply, pop, drop, view the stashed diff.
+- **Commit box** — summary + description, Conventional Commit prefixes, co-authors from recent
+  history, *Amend* (warns when it is already pushed), **Commit & Push** (⌘⇧↩), stages everything
+  automatically when nothing is staged. Every commit can be undone from the toast.
+- **Stashes** — stash everything or just the selected files, with or without untracked files;
+  apply, pop, drop, view the stashed diff.
 
 ### History
 
-- Filter commits by message, author or SHA; show one branch or all branches.
+- **Commit graph** with lanes for branches and merges; history loads page by page as you scroll.
+- Search git itself: words match messages or authors (or a SHA); `author:name` and `path:dir/`
+  narrow it down. Show one branch or all branches.
 - **Compare with a branch** — see what is *behind* and *ahead*.
 - Select several commits (⌘/⇧-click) to see their **combined diff**.
-- **Commit menu** — reset (soft / mixed / hard), checkout, revert, create branch, create tag,
-  cherry-pick onto another branch, copy SHA / tag, view on GitHub or GitLab.
+- **Commit menu** — undo commit, edit message (any commit), **interactive rebase** (reorder by
+  dragging; pick / reword / squash / fixup / drop), reset (soft / mixed / hard), checkout, revert,
+  create branch, create tag (then push it from the toast), cherry-pick onto another branch,
+  copy SHA / tag, view on GitHub or GitLab.
+- **File history** (follows renames) and **blame** from any file's context menu.
 
 ### Diff
 
 - GitHub-style colors with **word-level highlighting** for small edits.
 - Syntax highlighting for ~20 languages, unified or split layout, whole-file context,
-  adjustable text size.
+  ignore whitespace, adjustable text size.
+- Jump between changes (⌥⌘↑ / ⌥⌘↓) or click the change map on the right edge.
+- Before / after preview for images.
 
 ### Branches & sync
 
 - Switch, create, merge, rebase, rename and delete branches (local and remote) from the branch list.
-- One sync button that becomes **Fetch**, **Pull**, **Push** or **Publish** depending on state;
-  optional auto-fetch every 10 minutes.
-- A banner for interrupted **merge / rebase / cherry-pick / revert** with Continue, Skip and Abort;
-  resolve conflicts with *Use Ours* / *Use Theirs* / *Mark as Resolved*.
+- **Tags** tab in the branch list: check out, push, push all, delete locally and on the remote.
+- One sync button that becomes **Fetch**, **Pull**, **Push** or **Publish** depending on state; its
+  menu has pull with fast-forward / rebase / merge and **force push with lease**. Diverged branches
+  ask how to combine them. Optional auto-fetch every 10 minutes; default pull mode in Settings.
+- **Remotes** — add, edit and remove remotes (Repository ▸ Remotes…).
+
+### Merge & conflicts (GitHub Desktop style)
+
+- **Merge into current branch** (⇧⌘M): pick a branch, see beforehand whether it merges cleanly or
+  how many files will conflict, then merge, squash-merge or rebase.
+- When conflicts appear the **Resolve conflicts** dialog opens: every conflicted file with
+  *Use modified file from `main`* / *Use modified file from `feature`* (real branch names — also
+  correct during a rebase, where git's ours / theirs are swapped), delete / modify conflicts,
+  open in your editor, then **Continue** or **Abort**.
+- **Block by block**: both versions of each conflict side by side; use one, the other or both, then
+  save and mark resolved.
+
+### Getting started
+
+- Welcome screen with **Add existing** (⌘O), **Clone** (⇧⌘O) and **New repository** (⌘N), and a
+  check that `git`, `gh` and `glab` are installed.
+- **Pin** repositories to the top of the repository list.
 
 ### GitHub & GitLab
 
 - Pull requests via `gh pr list`, merge requests via `glab mr list` — detected from the remote URL,
   including self-hosted GitLab. Settings → Accounts shows `gh auth status` / `glab auth status`.
+- **New** opens the create form for the current branch; right-click a pull / merge request to check it out.
 
 ## Requirements
 
@@ -130,11 +172,17 @@ ln -s "$PWD/tools/gitplus" /usr/local/bin/gitplus && gitplus .
 
 | Shortcut      | Action                              |
 | ------------- | ----------------------------------- |
-| ⌘O            | Add repositories / scan a folder    |
+| ⌘K            | Command palette                     |
+| ⌘O / ⇧⌘O / ⌘N | Add / clone / new repository        |
 | ⌘1 / ⌘2 / ⌘3  | Changes / History / Stashes         |
 | ⌘T / ⌘B       | Repository list / branch list       |
 | ⌘⇧F / ⌘⇧L / ⌘⇧P | Fetch / Pull / Push               |
-| ⌘↩            | Commit                              |
+| ⌥⌘⇧P          | Force push (with lease)             |
+| ⇧⌘M           | Merge into current branch           |
+| ⌘↩ / ⌘⇧↩      | Commit / Commit & push              |
+| Space / ⌫     | Stage-unstage / discard selected files |
+| ⌥⌘↑ / ⌥⌘↓     | Previous / next change in a diff    |
+| ⌥⌘A           | Activity                            |
 | ⌘⇧E / ⌃\`     | Open in editor / terminal           |
 | ⌘⇧R           | Reveal in Finder                    |
 | ⌘= / ⌘− / ⌘0  | Diff text size                      |
