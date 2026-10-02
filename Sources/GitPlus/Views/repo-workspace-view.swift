@@ -35,6 +35,8 @@ struct RepoWorkspaceView: View {
     @State private var activationTick = 0
     @State private var watcher: FileWatcher?
     @State private var pendingExternalChange: Task<Void, Never>?
+    /// Paths reported by FSEvents since the last debounced refresh.
+    @State private var pendingPaths = Set<String>()
     @State private var inspection: FileInspection?
     @State private var showConflicts = false
     @State private var showMerge = false
@@ -42,6 +44,8 @@ struct RepoWorkspaceView: View {
 
     private var git: GitService { GitService(repo: repo.url) }
     private var revision: Int { store.revisions[repo.id] ?? 0 }
+    /// Working-tree-only changes (files edited outside Git Plus): reload changes, not history.
+    private var worktreeRevision: Int { store.worktreeRevisions[repo.id] ?? 0 }
     private var status: RepoStatus? { store.statuses[repo.id] }
 
     var body: some View {
@@ -74,7 +78,7 @@ struct RepoWorkspaceView: View {
         .toolbar {
             RepoToolbar(repo: repo, status: status, tab: $tab, changeCount: tree.count, stashCount: stashes.count)
         }
-        .task(id: "\(revision)|\(activationTick)") { await reload() }
+        .task(id: "\(revision)|\(worktreeRevision)|\(activationTick)") { await reload() }
         .task(id: autoFetch) {
             // Auto-fetch while this repository is open.
             while autoFetch && !Task.isCancelled {
@@ -117,7 +121,7 @@ struct RepoWorkspaceView: View {
                 if file.area == .conflicted {
                     ConflictFileView(repo: repo, file: file).id(file.id)
                 } else {
-                    FileDiffView(source: .workingTree(git), file: file, repoID: repo.id, reloadKey: revision &+ activationTick)
+                    FileDiffView(source: .workingTree(git), file: file, repoID: repo.id, reloadKey: revision &+ worktreeRevision &+ activationTick)
                         .id(file.id)
                 }
             } else if files.count > 1 {
@@ -144,15 +148,26 @@ struct RepoWorkspaceView: View {
         }
     }
 
-    /// Reload when files change outside Git Plus (debounced; FSEvents already coalesces bursts).
+    /// Reload when files change outside Git Plus. Events are collected for 400 ms; changes that only
+    /// touch `.gitignore`d files are dropped, and history reloads only when refs / HEAD changed.
     private func startWatching() {
-        let id = repo.id
-        watcher = FileWatcher(folder: repo.url) {
+        let id = repo.id, git = self.git
+        watcher = FileWatcher(folder: repo.url) { paths in
+            pendingPaths.formUnion(paths)
             pendingExternalChange?.cancel()
             pendingExternalChange = Task {
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
-                await store.noteExternalChange(id)
+                let batch = pendingPaths
+                pendingPaths = []
+                let affectsHistory = batch.contains(where: FileWatcher.affectsHistory)
+                let gitInternal = batch.filter(FileWatcher.isGitInternal)
+                let worktree = batch.subtracting(gitInternal)
+                if gitInternal.isEmpty, !worktree.isEmpty, worktree.count <= 200 {
+                    let ignored = await git.ignoredPaths(Array(worktree))
+                    if ignored.count == worktree.count { return }   // only ignored files (build output, caches)
+                }
+                await store.noteExternalChange(id, affectsHistory: affectsHistory)
             }
         }
     }

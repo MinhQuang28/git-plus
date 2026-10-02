@@ -48,9 +48,16 @@ enum ProcessRunner {
         }
     }
 
-    /// Returns true when `tool` is resolvable on PATH.
+    private static let availabilityLock = NSLock()
+    nonisolated(unsafe) private static var available: Set<String> = []
+
+    /// Returns true when `tool` is resolvable on PATH. Found tools are remembered (one `which` per tool);
+    /// missing ones are re-checked, so installing `gh` takes effect without a restart.
     static func isAvailable(_ tool: String) async -> Bool {
-        (try? await run("/usr/bin/which", [tool])) != nil
+        if availabilityLock.withLock({ available.contains(tool) }) { return true }
+        let found = (try? await run("/usr/bin/which", [tool])) != nil
+        if found { availabilityLock.withLock { _ = available.insert(tool) } }
+        return found
     }
 
     private static func runBlocking(_ tool: String, _ args: [String], in directory: URL?, okCodes: Set<Int32>) throws -> Data {

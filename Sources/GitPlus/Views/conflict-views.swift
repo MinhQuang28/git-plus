@@ -210,9 +210,13 @@ struct ConflictsSheet: View {
     private func load() async {
         let tree = (try? await git.workingTree()) ?? WorkingTree()
         files = tree.conflicted
-        var counts: [String: Int] = [:]
-        for file in tree.conflicted { counts[file.path] = git.conflictMarkerCount(file) }
-        markers = counts
+        // Reading and parsing (possibly large) files stays off the main thread.
+        let service = git, conflicted = tree.conflicted
+        markers = await Task.detached {
+            var counts: [String: Int] = [:]
+            for file in conflicted { counts[file.path] = service.conflictMarkerCount(file) }
+            return counts
+        }.value
         resolved.removeAll { path in files.contains { $0.path == path } }
         if let operation {
             let names = await git.conflictSides(operation)

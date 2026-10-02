@@ -13,6 +13,8 @@ struct HistoryPaneView: View {
 
     @State private var commits: [Commit] = []
     @State private var graph: [GraphRow] = []
+    /// Lanes to reserve (computed with the graph, not per render).
+    @State private var graphWidth = 1
     @State private var hasMore = false
     @State private var isLoadingMore = false
     @State private var selection = Set<String>()
@@ -34,7 +36,6 @@ struct HistoryPaneView: View {
     private var parsedQuery: HistoryQuery { HistoryQuery(parsing: query) }
     /// The graph only makes sense for an unfiltered, uncompared history.
     private var graphVisible: Bool { showGraph && compareBranch == nil && parsedQuery.isEmpty && graph.count == commits.count }
-    private var graphWidth: Int { min(graph.map(\.width).max() ?? 1, 8) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -197,7 +198,7 @@ struct HistoryPaneView: View {
             hasMore = false
         }
         commits = loaded
-        graph = q.isEmpty && compareBranch == nil ? CommitGraph.layout(loaded) : []
+        setGraph(q.isEmpty && compareBranch == nil ? CommitGraph.layout(loaded) : [])
         // Keep the selection across refreshes when possible; otherwise select the newest commit.
         let kept = selection.filter { hash in loaded.contains { $0.hash == hash } }
         selection = kept.isEmpty ? Set(loaded.prefix(1).map(\.hash)) : kept
@@ -213,7 +214,12 @@ struct HistoryPaneView: View {
         hasMore = page.count == Self.pageSize
         let known = Set(commits.map(\.hash))
         commits += page.filter { !known.contains($0.hash) }
-        if compareBranch == nil { graph = CommitGraph.layout(commits) }
+        if compareBranch == nil { setGraph(CommitGraph.layout(commits)) }
+    }
+
+    private func setGraph(_ rows: [GraphRow]) {
+        graph = rows
+        graphWidth = min(rows.map(\.width).max() ?? 1, 8)
     }
 }
 

@@ -81,7 +81,9 @@ enum DiffRenderer {
                 case .hunk: inBlock = false   // state before a hunk is unknown
                 case side, .context:
                     let tokens = highlighter.tokenize(line.text, inBlockComment: &inBlock)
-                    // Context lines: new-side pass runs last and wins.
+                    // Context lines are tokenized on both passes (to track comment state) but only
+                    // rendered on the new-side pass, which is the one that wins.
+                    if line.kind == .context && side == .removed { continue }
                     result[line.id] = SyntaxHighlighter.attributed(tokens)
                 default: continue
                 }

@@ -1,17 +1,21 @@
 import CoreServices
 import Foundation
 
-/// Watches a repository folder with FSEvents and reports (debounced) that something changed,
-/// so the open repository refreshes when files are edited outside Git Plus.
+/// Watches a repository folder with FSEvents and reports the changed paths, so the open repository
+/// refreshes when files are edited outside Git Plus.
 final class FileWatcher {
     private var stream: FSEventStreamRef?
-    private let onChange: () -> Void
+    private let onChange: ([String]) -> Void
     private let root: String
 
-    /// Paths whose churn says nothing about the repository state.
-    private static let ignoredFragments = ["/.git/objects/", "/.git/logs/", "/node_modules/", "/.build/", "/DerivedData/", "/build/"]
+    /// Paths whose churn says nothing about the repository state (git internals, common build output).
+    private static let ignoredFragments = [
+        "/.git/objects/", "/.git/logs/", "/.git/lfs/", "/node_modules/", "/.build/", "/DerivedData/", "/build/",
+        "/dist/", "/target/", "/.next/", "/.nuxt/", "/.gradle/", "/.venv/", "/venv/", "/__pycache__/", "/.cache/",
+        "/.turbo/", "/coverage/", "/Pods/", "/.DS_Store",
+    ]
 
-    init(folder: URL, latency: TimeInterval = 0.6, onChange: @escaping () -> Void) {
+    init(folder: URL, latency: TimeInterval = 0.6, onChange: @escaping ([String]) -> Void) {
         self.onChange = onChange
         root = folder.standardizedFileURL.path
         var context = FSEventStreamContext(version: 0, info: Unmanaged.passUnretained(self).toOpaque(),
@@ -39,9 +43,17 @@ final class FileWatcher {
     }
 
     private func handle(_ paths: [String]) {
-        let relevant = paths.contains { path in
+        let relevant = paths.filter { path in
             !Self.ignoredFragments.contains { path.contains($0) } && !path.hasSuffix(".lock") && !path.hasSuffix("/.git/FETCH_HEAD")
         }
-        if relevant { onChange() }
+        if !relevant.isEmpty { onChange(relevant) }
     }
+
+    /// Whether a change can affect history (branches, HEAD) rather than only the working tree / index.
+    static func affectsHistory(_ path: String) -> Bool {
+        path.contains("/.git/HEAD") || path.contains("/.git/refs/") || path.contains("/.git/packed-refs")
+            || path.contains("/.git/rebase-") || path.hasSuffix("/.git/MERGE_HEAD") || path.hasSuffix("/.git/ORIG_HEAD")
+    }
+
+    static func isGitInternal(_ path: String) -> Bool { path.contains("/.git/") || path.hasSuffix("/.git") }
 }
