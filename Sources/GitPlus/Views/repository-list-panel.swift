@@ -5,6 +5,8 @@ struct RepositoryListPanel: View {
     @Environment(WorkspaceStore.self) private var store
     @Environment(SwitcherState.self) private var switcher
     @AppStorage("selection") private var storedSelection = ""
+    /// Comma-separated `SidebarSelection.rawValue`s of collapsed groups (persisted).
+    @AppStorage("collapsedGroups") private var collapsedRaw = ""
 
     @State private var filter = ""
     @State private var renamingKey: String?
@@ -13,6 +15,16 @@ struct RepositoryListPanel: View {
     @FocusState private var renameFocused: Bool
 
     private var selection: SidebarSelection? { SidebarSelection(rawValue: storedSelection) }
+    private var collapsed: Set<String> { Set(collapsedRaw.split(separator: ",").map(String.init)) }
+    /// A filter always shows every match, even inside collapsed groups.
+    private func isCollapsed(_ key: SidebarSelection) -> Bool { filter.isEmpty && collapsed.contains(key.rawValue) }
+
+    private func toggleCollapsed(_ key: SidebarSelection) {
+        var set = collapsed
+        if set.remove(key.rawValue) == nil { set.insert(key.rawValue) }
+        withAnimation(.easeInOut(duration: 0.15)) { collapsedRaw = set.sorted().joined(separator: ",") }
+    }
+
     private func matches(_ repo: RepoEntry) -> Bool { filter.isEmpty || repo.name.localizedCaseInsensitiveContains(filter) }
 
     var body: some View {
@@ -66,7 +78,7 @@ struct RepositoryListPanel: View {
         let repos = store.repos(in: groupID).filter(matches)
         if !repos.isEmpty || (groupID != nil && filter.isEmpty) {
             groupTitle(key, name: name, groupID: groupID, count: repos.count)
-            ForEach(repos) { row($0) }
+            if !isCollapsed(key) { ForEach(repos) { row($0) } }
         }
     }
 
@@ -79,6 +91,16 @@ struct RepositoryListPanel: View {
                     .onSubmit { commitRename(key) }
                     .onExitCommand { renamingKey = nil }
             } else {
+                Button { toggleCollapsed(key) } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isCollapsed(key) ? 0 : 90))
+                        .frame(width: 14, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(isCollapsed(key) ? "Show repositories" : "Hide repositories")
                 // Folder icon sets groups apart from the repository rows below them.
                 Image(systemName: groupID == nil ? "tray.fill" : "folder.fill")
                     .font(.system(size: 13))
