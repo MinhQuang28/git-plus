@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Open repositories (or folders to scan) in Git Plus: `gitplus [path ...]` (defaults to $PWD).
+[[ $# -eq 0 ]] && set -- "$PWD"
+exec open -a "Git Plus" "$@"
