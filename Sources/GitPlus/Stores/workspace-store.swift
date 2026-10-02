@@ -263,9 +263,9 @@ final class WorkspaceStore {
 
     /// `mode == nil` → the default from Settings.
     func pull(_ ids: [UUID], mode: PullMode? = nil) async {
-        let mode = mode ?? defaultPullMode
-        await runEach(ids, label: mode == .fastForward ? "pull" : "pull (\(mode.title.lowercased()))", done: "Pulled") {
-            try await $0.pull(mode)
+        let resolved = mode ?? defaultPullMode
+        await runEach(ids, label: resolved == .fastForward ? "pull" : "pull (\(resolved.title.lowercased()))", done: "Pulled") {
+            try await $0.pull(resolved)
         }
     }
 

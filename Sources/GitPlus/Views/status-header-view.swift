@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Card at the top of a repository's list column: branch → upstream, sync / change state at a glance,
+/// Card under the repository switcher: branch → upstream, sync / change state at a glance,
 /// and a callout with the next step when the branch needs attention (diverged, unpublished).
 struct RepoStatusHeader: View {
     @Environment(WorkspaceStore.self) private var store
@@ -30,8 +30,6 @@ struct RepoStatusHeader: View {
                         StatusPill(text: "clean", symbol: "checkmark", tint: Theme.added)
                     }
                     Spacer(minLength: 0)
-                    Text(s.lastFetched.map { "fetched \(RelativeTime.string($0))" } ?? "never fetched")
-                        .font(.caption).foregroundStyle(.tertiary).lineLimit(1)
                 }
             }
             callout(suggestion)

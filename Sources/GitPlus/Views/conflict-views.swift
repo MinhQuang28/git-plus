@@ -398,7 +398,7 @@ struct ConflictFileView: View {
     }
 
     private func resolve(_ side: ConflictSide) {
-        let file = file
+        let file = self.file
         Task {
             if await store.perform(repo.id, "resolve \(file.path)", success: "Resolved \(file.path)", { try await $0.resolve(file, side: side) }) {
                 onDone()
@@ -408,7 +408,7 @@ struct ConflictFileView: View {
 
     /// `text == nil` → keep the file as it is on disk, just mark it resolved.
     private func save(text: String?) {
-        let file = file
+        let file = self.file
         Task {
             let ok = await store.perform(repo.id, "resolve \(file.path)", success: "Resolved \(file.path)") {
                 if let text { try await $0.saveResolution(file, text: text) } else { try await $0.markResolved(file) }
@@ -544,7 +544,7 @@ struct MergeSheet: View {
 
     private func start() {
         guard let branch = selected else { return }
-        let strategy = strategy, current = current
+        let strategy = self.strategy, current = self.current
         dismiss()
         Task {
             let ok: Bool

@@ -47,16 +47,18 @@ struct RepoWorkspaceView: View {
     var body: some View {
         HStack(spacing: 0) {
             ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
-                VStack(spacing: 0) {
-                    RepoStatusHeader(repo: repo, status: status)
-                    Group {
-                        switch tab {
-                        case .changes: ChangesPaneView(repo: repo, tree: tree, selection: $selectedChanges)
-                        case .history: HistoryPaneView(repo: repo, remote: status?.remote, selected: $selectedCommits)
-                        case .stashes: StashListView(stashes: stashes, selection: $selectedStash)
+                SwitcherColumn {
+                    VStack(spacing: 0) {
+                        RepoStatusHeader(repo: repo, status: status)
+                        Group {
+                            switch tab {
+                            case .changes: ChangesPaneView(repo: repo, tree: tree, selection: $selectedChanges)
+                            case .history: HistoryPaneView(repo: repo, remote: status?.remote, selected: $selectedCommits)
+                            case .stashes: StashListView(stashes: stashes, selection: $selectedStash)
+                            }
                         }
+                        .frame(maxHeight: .infinity)
                     }
-                    .frame(maxHeight: .infinity)
                 }
             }
             main.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -67,8 +69,8 @@ struct RepoWorkspaceView: View {
             }
         }
         .environment(\.inspectFile, { (item: FileInspection) in inspection = item })
-        .navigationTitle(repo.name)
-        .navigationSubtitle(subtitle)
+        .navigationTitle(repo.name)          // window menu / Mission Control only
+        .toolbar(removing: .title)            // the name is already in "Current Repository"
         .toolbar {
             RepoToolbar(repo: repo, status: status, tab: $tab, changeCount: tree.count, stashCount: stashes.count)
         }
@@ -103,16 +105,6 @@ struct RepoWorkspaceView: View {
         .sheet(item: $inspection) { item in
             FileInspectorView(repo: repo, path: item.path, mode: item.mode, remote: status?.remote) { inspection = nil }
         }
-    }
-
-    private var subtitle: String {
-        guard let s = status else { return "" }
-        var parts: [String] = []
-        if s.changedFiles > 0 { parts.append("\(s.changedFiles) changed") }
-        if s.ahead > 0 { parts.append("↑\(s.ahead)") }
-        if s.behind > 0 { parts.append("↓\(s.behind)") }
-        if let date = s.lastFetched { parts.append("fetched \(RelativeTime.string(date))") }
-        return parts.joined(separator: " · ")
     }
 
     private var selectedFiles: [ChangedFile] { tree.all.filter { selectedChanges.contains($0.id) } }

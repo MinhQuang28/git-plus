@@ -23,7 +23,7 @@ struct RepoToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–")
+            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–", lastFetched: status?.lastFetched)
         }
         ToolbarItem(placement: .principal) {
             Picker("View", selection: $tab) {
@@ -57,11 +57,22 @@ struct RepoToolbar: ToolbarContent {
 struct BranchToolbarButton: View {
     let repo: RepoEntry
     let branch: String
+    let lastFetched: Date?
     @State private var isPresented = false
+
+    private var fetchedText: String { lastFetched.map { "Fetched \(RelativeTime.string($0))" } ?? "Never fetched" }
 
     var body: some View {
         Button { isPresented.toggle() } label: {
-            Label(branch, systemImage: "arrow.triangle.branch").labelStyle(.titleAndIcon)
+            // Branch on top, last fetch time below.
+            HStack(spacing: 7) {
+                Image(systemName: "arrow.triangle.branch").frame(width: 16)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(branch).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+                    Text(fetchedText).font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 4)
         }
         .help("Switch, create, merge or delete branches (⌘B)")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
@@ -120,11 +131,10 @@ struct SyncToolbarButton: View {
     }
 
     private func help(_ suggestion: SyncSuggestion) -> String {
-        let fetched = status?.lastFetched.map { "Last fetched \(RelativeTime.string($0))" } ?? "Never fetched"
         switch suggestion {
-        case .diverged: return "Your branch and its upstream have diverged — choose how to sync. \(fetched)"
-        case .noRemote: return "This repository has no remote. Click to add one."
-        default: return fetched
+        case .diverged: "Your branch and its upstream have diverged — choose how to sync. More options in the menu."
+        case .noRemote: "This repository has no remote. Click to add one."
+        default: "Fetch, pull or push depending on the branch state (⌘⇧F / ⌘⇧L / ⌘⇧P). More options in the menu."
         }
     }
 }
@@ -161,7 +171,7 @@ struct ReviewsToolbarButton: View {
         Button { isPresented.toggle() } label: { Label(provider.reviewNoun, systemImage: "arrow.triangle.pull") }
             .help("\(provider.reviewNoun) via \(provider.cliName ?? "")")
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                PullRequestsView(repo: repo, provider: provider) { isPresented = false }.frame(width: 860, height: 460)
+                PullRequestsView(repo: repo, provider: provider) { isPresented = false }
             }
     }
 }

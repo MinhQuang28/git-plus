@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Window root: GitHub Desktop–style top bar + repository or group workspace.
+/// Window root: repository or group workspace. The repository list drops down from the
+/// "Current Repository" header of the left column (no permanent sidebar).
 struct ContentView: View {
     @Environment(WorkspaceStore.self) private var store
     @AppStorage("selection") private var storedSelection = ""
+    @State private var switcher = SwitcherState()
 
     private var selection: Binding<SidebarSelection?> {
         Binding(get: { SidebarSelection(rawValue: storedSelection) }, set: { storedSelection = $0?.rawValue ?? "" })
@@ -11,12 +13,10 @@ struct ContentView: View {
 
     var body: some View {
         @Bindable var store = store
-        NavigationSplitView {
-            SidebarView(selection: selection)
-        } detail: {
-            content.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .overlay(alignment: .bottom) {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .environment(switcher)
+            .overlay(alignment: .bottom) {
             if let toast = store.toast { ToastView(toast: toast).id(toast.id) }
         }
         .animation(.spring(duration: 0.3), value: store.toast)
@@ -42,10 +42,19 @@ struct ContentView: View {
     }
 
     private var placeholder: some View {
+        HStack(spacing: 0) {
+            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
+                SwitcherColumn(forceExpanded: true) { EmptyView() }
+            }
+            welcome.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var welcome: some View {
         ContentUnavailableView {
             Label(store.workspace.repos.isEmpty ? "No Repositories" : "No Selection", systemImage: "square.stack.3d.up")
         } description: {
-            Text("Add repositories with ⌘O, then pick one in the sidebar.")
+            Text("Add repositories with ⌘O, then pick one from the list on the left.")
         } actions: {
             Button("Add Repositories…") {
                 let urls = FolderPicker.choose()
