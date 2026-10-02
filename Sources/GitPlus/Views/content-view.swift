@@ -5,7 +5,6 @@ import SwiftUI
 struct ContentView: View {
     @Environment(WorkspaceStore.self) private var store
     @AppStorage("selection") private var storedSelection = ""
-    @AppStorage("recentRepos") private var recentRaw = ""
     @State private var switcher = SwitcherState()
 
     private var selection: Binding<SidebarSelection?> {
@@ -17,7 +16,6 @@ struct ContentView: View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .environment(switcher)
-            .onChange(of: storedSelection, initial: true) { _, raw in rememberRecent(raw) }
             .overlay(alignment: .bottom) {
             if let toast = store.toast { ToastView(toast: toast).id(toast.id) }
         }
@@ -41,13 +39,6 @@ struct ContentView: View {
         case nil:
             placeholder
         }
-    }
-
-    /// Most recently opened repositories first (shown under "Recent").
-    private func rememberRecent(_ raw: String) {
-        guard case .repo(let id) = SidebarSelection(rawValue: raw) else { return }
-        let ids = [id.uuidString] + recentRaw.split(separator: ",").map(String.init).filter { $0 != id.uuidString }
-        recentRaw = ids.prefix(8).joined(separator: ",")
     }
 
     private var placeholder: some View {

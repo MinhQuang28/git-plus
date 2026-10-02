@@ -13,7 +13,7 @@ no tokens and talks to no server of its own.
 ### Repository groups
 
 - **Repository switcher** — click *Current Repository* (⌘T) and the repository list drops down over
-  the left column: filter, **Recent**, one section per group, *Ungrouped*. Drag repositories between
+  the left column: filter, one section per group, *Ungrouped*. Drag repositories between
   groups, double-click a group to rename it (including *Ungrouped*), click a group to open its overview.
 - **Auto-Group by Remote** — one click groups repositories by `host/namespace`
   (`github.com/acme`, `gitlab.com/team/backend`, …).

@@ -1,12 +1,10 @@
 import SwiftUI
 
-/// Drop-down repository list (GitHub Desktop style): filter + Add, Recent, one section per group,
-/// Ungrouped. Click a group title to open its overview, double-click to rename, drag repos onto it.
+/// Drop-down repository list (GitHub Desktop style): filter + Add, one section per group, Ungrouped. Click a group title to open its overview, double-click to rename, drag repos onto it.
 struct RepositoryListPanel: View {
     @Environment(WorkspaceStore.self) private var store
     @Environment(SwitcherState.self) private var switcher
     @AppStorage("selection") private var storedSelection = ""
-    @AppStorage("recentRepos") private var recentRaw = ""
 
     @State private var filter = ""
     @State private var renamingKey: String?
@@ -16,9 +14,6 @@ struct RepositoryListPanel: View {
 
     private var selection: SidebarSelection? { SidebarSelection(rawValue: storedSelection) }
     private func matches(_ repo: RepoEntry) -> Bool { filter.isEmpty || repo.name.localizedCaseInsensitiveContains(filter) }
-    private var recent: [RepoEntry] {
-        recentRaw.split(separator: ",").compactMap { UUID(uuidString: String($0)).flatMap(store.repo) }.filter(matches).prefix(3).map { $0 }
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,13 +40,7 @@ struct RepositoryListPanel: View {
             }
             .padding(10)
             ScrollView {
-                // Plain VStack: a repo can appear twice (Recent + its group); lazy stacks would
-                // treat the duplicate identity as one row and drop it.
-                VStack(alignment: .leading, spacing: 0) {
-                    if !recent.isEmpty && filter.isEmpty {
-                        title("Recent")
-                        ForEach(recent) { row($0).id("recent-\($0.id)") }
-                    }
+                LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(store.groups) { group in
                         section(.group(group.id), name: group.name, groupID: group.id)
                     }
@@ -70,11 +59,6 @@ struct RepositoryListPanel: View {
             groupTitle(key, name: name, groupID: groupID, count: repos.count)
             ForEach(repos) { row($0) }
         }
-    }
-
-    private func title(_ text: String) -> some View {
-        Text(text).font(.system(size: 13, weight: .bold))
-            .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
     }
 
     private func groupTitle(_ key: SidebarSelection, name: String, groupID: UUID?, count: Int) -> some View {
