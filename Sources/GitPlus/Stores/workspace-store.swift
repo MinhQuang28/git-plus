@@ -9,6 +9,10 @@ final class WorkspaceStore {
     private(set) var busy: Set<UUID> = []
     /// Bumped after every mutation of a repo so views can reload history/changes.
     private(set) var revisions: [UUID: Int] = [:]
+    /// Bumped when only the working tree / index changed outside Git Plus (history stays loaded).
+    private(set) var worktreeRevisions: [UUID: Int] = [:]
+    /// When each repository's last Git Plus operation finished; file events right after it are our own.
+    @ObservationIgnored private var lastMutation: [UUID: Date] = [:]
 
     /// Last failure, shown as a non-blocking banner with a suggested fix.
     var failure: Failure?
@@ -194,7 +198,8 @@ final class WorkspaceStore {
     func refreshStatus(_ ids: [UUID]? = nil) async {
         let targets = (ids ?? workspace.repos.map(\.id)).compactMap(repo)
         await forEachBounded(targets, { repo -> (UUID, RepoStatus?) in (repo.id, try? await GitService(repo: repo.url).status()) }) { result in
-            statuses[result.0] = result.1
+            // Unchanged statuses are not written: every write re-renders all views reading `statuses`.
+            if statuses[result.0] != result.1 { statuses[result.0] = result.1 }
         }
     }
 
@@ -224,6 +229,7 @@ final class WorkspaceStore {
         busy.remove(id)
         revisions[id, default: 0] += 1
         await refreshStatus([id])
+        lastMutation[id] = Date()
         if ok, let success {
             if let undo {
                 showToast(success, actionTitle: "Undo") { [weak self] in
@@ -245,10 +251,13 @@ final class WorkspaceStore {
         }
     }
 
-    /// Files changed outside Git Plus (FSEvents): reload views and status.
-    func noteExternalChange(_ id: UUID) async {
+    /// Files changed outside Git Plus (FSEvents): reload status and the affected views.
+    /// `affectsHistory == false` (an edited file, the index) leaves history and commit diffs alone.
+    func noteExternalChange(_ id: UUID, affectsHistory: Bool) async {
         guard !busy.contains(id) else { return }
-        revisions[id, default: 0] += 1
+        // Events caused by our own operation arrive just after it; its refresh already covered them.
+        if let last = lastMutation[id], Date().timeIntervalSince(last) < 1.5 { return }
+        if affectsHistory { revisions[id, default: 0] += 1 } else { worktreeRevisions[id, default: 0] += 1 }
         await refreshStatus([id])
     }
 
@@ -285,6 +294,8 @@ final class WorkspaceStore {
         }
         targets.forEach { revisions[$0.id, default: 0] += 1 }
         await refreshStatus(targets.map(\.id))
+        let now = Date()
+        targets.forEach { lastMutation[$0.id] = now }
         if !failures.isEmpty {
             let detail = failures.map(\.1).joined(separator: "\n")
             failure = Failure(title: "\(label.prefix(1).uppercased() + label.dropFirst()) failed", detail: detail,

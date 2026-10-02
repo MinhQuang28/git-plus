@@ -66,7 +66,9 @@ struct FileDiffView: View {
     /// (not while whitespace is ignored: the shown diff would not apply).
     var canStage: Bool { repoID != nil && file.supportsPartialStaging && !ignoreWhitespace }
 
-    private var hunkIDs: [Int] { lines.filter { $0.kind == .hunk }.map(\.id) }
+    /// Computed once per load (not per render): hunk line ids and the change map.
+    @State private var hunkIDs: [Int] = []
+    @State private var marks: [ChangeMark] = []
     @State private var currentHunk = 0
     @State private var scrollTarget: Int?
 
@@ -97,7 +99,7 @@ struct FileDiffView: View {
             Text(error).foregroundStyle(.red).padding().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else if isLoading && lines.isEmpty {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if lines.filter({ $0.kind != .meta }).isEmpty && isImage {
+        } else if isImage && !lines.contains(where: { $0.kind != .meta }) {
             ImageDiffView(source: source, file: file)
         } else if lines.isEmpty {
             ContentUnavailableView(ignoreWhitespace ? "Only whitespace changed" : "No textual changes", systemImage: "equal.square",
@@ -132,7 +134,7 @@ struct FileDiffView: View {
                     .padding(.bottom, selected.isEmpty ? 0 : 60)
                 }
                 .overlay(alignment: .trailing) {
-                    ChangeMarkerStrip(lines: lines) { id in proxy.scrollTo(id, anchor: .top) }
+                    ChangeMarkerStrip(marks: marks) { id in proxy.scrollTo(id, anchor: .top) }
                 }
                 .onChange(of: scrollTarget) { _, id in
                     if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
@@ -197,7 +199,10 @@ struct FileDiffView: View {
             truncated = prepared.0.truncated
             rows = prepared.1
             styles = prepared.2
-            selected = selected.filter { id in lines.contains { $0.id == id && $0.kind != .context } }
+            let changeIDs = Set(lines.lazy.filter { $0.kind == .added || $0.kind == .removed }.map(\.id))
+            selected = selected.filter { changeIDs.contains($0) }
+            hunkIDs = lines.filter { $0.kind == .hunk }.map(\.id)
+            marks = ChangeMark.build(lines)
             currentHunk = 0
             error = nil
         } catch {
@@ -206,27 +211,64 @@ struct FileDiffView: View {
     }
 }
 
+/// A stretch of the change map: where in the diff (as fractions) and what kind of change.
+struct ChangeMark: Hashable {
+    enum Kind: UInt8 { case added = 1, removed = 2, mixed = 3 }
+    let start: Double
+    let end: Double
+    let kind: Kind
+    /// First changed line in the stretch (scroll target).
+    let lineID: Int
+
+    /// Buckets the diff into at most `buckets` slots so even 20 000-line diffs draw a few hundred rects.
+    static func build(_ lines: [DiffLine], buckets: Int = 300) -> [ChangeMark] {
+        let n = lines.count
+        guard n > 0 else { return [] }
+        let count = min(buckets, n)
+        var kinds = [UInt8](repeating: 0, count: count)
+        var firstLine = [Int](repeating: -1, count: count)
+        for (i, line) in lines.enumerated() where line.kind == .added || line.kind == .removed {
+            let b = i * count / n
+            kinds[b] |= line.kind == .added ? 1 : 2
+            if firstLine[b] < 0 { firstLine[b] = line.id }
+        }
+        var marks: [ChangeMark] = []
+        var b = 0
+        while b < count {
+            guard let kind = Kind(rawValue: kinds[b]) else { b += 1; continue }
+            var e = b + 1
+            while e < count, kinds[e] == kinds[b] { e += 1 }   // merge equal neighbours
+            marks.append(ChangeMark(start: Double(b) / Double(count), end: Double(e) / Double(count), kind: kind, lineID: firstLine[b]))
+            b = e
+        }
+        return marks
+    }
+}
+
 /// Thin strip on the right edge of a diff marking where additions / removals are; click to jump.
 struct ChangeMarkerStrip: View {
-    let lines: [DiffLine]
+    let marks: [ChangeMark]
     let jump: (Int) -> Void
 
     var body: some View {
         GeometryReader { geo in
-            let count = max(lines.count, 1)
             Canvas { context, size in
-                let h = max(size.height / CGFloat(count), 1.5)
-                for (i, line) in lines.enumerated() where line.kind == .added || line.kind == .removed {
-                    let rect = CGRect(x: 2, y: CGFloat(i) / CGFloat(count) * size.height, width: size.width - 4, height: h)
-                    context.fill(Path(rect), with: .color(line.kind == .added ? Theme.added : Theme.deleted))
+                for mark in marks {
+                    let rect = CGRect(x: 2, y: mark.start * size.height, width: size.width - 4,
+                                      height: max((mark.end - mark.start) * size.height, 1.5))
+                    let color = switch mark.kind {
+                    case .added: Theme.added
+                    case .removed: Theme.deleted
+                    case .mixed: Theme.modified
+                    }
+                    context.fill(Path(rect), with: .color(color))
                 }
             }
             .contentShape(Rectangle())
             .onTapGesture { location in
-                let index = min(max(Int(location.y / geo.size.height * CGFloat(count)), 0), lines.count - 1)
-                // Jump to the nearest change at or after the tapped position.
-                let target = lines[index...].first { $0.kind == .added || $0.kind == .removed } ?? lines[index]
-                jump(target.id)
+                // Jump to the first change at or after the tapped position.
+                let fraction = location.y / max(geo.size.height, 1)
+                if let target = marks.first(where: { $0.end >= fraction }) ?? marks.last { jump(target.lineID) }
             }
         }
         .frame(width: 10)

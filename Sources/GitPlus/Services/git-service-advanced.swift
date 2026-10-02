@@ -51,6 +51,14 @@ extension GitService {
     /// Restores what `discardAll()` put aside.
     func undoDiscardAll() async throws { _ = try await git(["stash", "pop", "--index", "stash@{0}"]) }
 
+    /// The subset of `paths` (absolute or repo-relative) that `.gitignore` rules ignore.
+    func ignoredPaths(_ paths: [String]) async -> Set<String> {
+        guard !paths.isEmpty else { return [] }
+        // Exit status 1 means "none of them is ignored".
+        let out = (try? await ProcessRunner.run("git", ["check-ignore", "--"] + paths.prefix(200), in: repo, okCodes: [0, 1])) ?? ""
+        return Set(out.split(separator: "\n").map(String.init))
+    }
+
     /// Appends a pattern to the repository's root `.gitignore`.
     func addToGitignore(_ pattern: String) throws {
         let url = repo.appendingPathComponent(".gitignore")

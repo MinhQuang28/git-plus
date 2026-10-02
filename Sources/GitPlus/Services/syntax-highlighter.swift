@@ -13,6 +13,19 @@ struct SyntaxHighlighter: Sendable {
     /// Lines longer than this are left plain to keep rendering fast.
     var maxLineLength = 1_000
 
+    // Delimiters as character arrays, built once (not per character while scanning).
+    private let lineCommentChars: [[Character]]
+    private let blockStartChars: [Character]?
+    private let blockEndChars: [Character]?
+
+    init(language: SyntaxLanguage, maxLineLength: Int = 1_000) {
+        self.language = language
+        self.maxLineLength = maxLineLength
+        lineCommentChars = language.lineComments.map { Array($0) }
+        blockStartChars = language.blockComment.map { Array($0.start) }
+        blockEndChars = language.blockComment.map { Array($0.end) }
+    }
+
     func tokenize(_ line: String, inBlockComment: inout Bool) -> [SyntaxToken] {
         guard line.count <= maxLineLength else { return [SyntaxToken(text: line, kind: .plain)] }
         if language.hashHeadings, !inBlockComment, line.hasPrefix("#") { return [SyntaxToken(text: line, kind: .keyword)] }
@@ -28,12 +41,14 @@ struct SyntaxHighlighter: Sendable {
             flushPlain()
             tokens.append(SyntaxToken(text: String(chars[from..<to]), kind: kind))
         }
-        func matches(_ s: String, at index: Int) -> Bool {
-            let p = Array(s)
-            return index + p.count <= chars.count && Array(chars[index..<index + p.count]) == p
+        /// Allocation-free comparison of `p` against the line at `index`.
+        func matches(_ p: [Character], at index: Int) -> Bool {
+            guard !p.isEmpty, index + p.count <= chars.count else { return false }
+            for k in 0..<p.count where chars[index + k] != p[k] { return false }
+            return true
         }
         /// Index just past the block-comment end, or `chars.count` if it continues.
-        func blockEnd(from index: Int, end: String) -> Int {
+        func blockEnd(from index: Int, end: [Character]) -> Int {
             var j = index
             while j < chars.count {
                 if matches(end, at: j) { inBlockComment = false; return j + end.count }
@@ -43,20 +58,20 @@ struct SyntaxHighlighter: Sendable {
             return chars.count
         }
 
-        if inBlockComment, let block = language.blockComment {
-            let end = blockEnd(from: 0, end: block.end)
+        if inBlockComment, let endChars = blockEndChars {
+            let end = blockEnd(from: 0, end: endChars)
             emit(0, end, .comment)
             i = end
         }
 
         while i < chars.count {
             let c = chars[i]
-            if language.lineComments.contains(where: { matches($0, at: i) }) {
+            if lineCommentChars.contains(where: { matches($0, at: i) }) {
                 emit(i, chars.count, .comment)
                 break
             }
-            if let block = language.blockComment, matches(block.start, at: i) {
-                let end = blockEnd(from: i + block.start.count, end: block.end)
+            if let start = blockStartChars, let endChars = blockEndChars, matches(start, at: i) {
+                let end = blockEnd(from: i + start.count, end: endChars)
                 emit(i, end, .comment)
                 i = end
                 continue
@@ -107,14 +122,20 @@ struct SyntaxHighlighter: Sendable {
         }
     }
 
+    // Dynamic colors are created once; building one per token was a hot spot in large diffs.
+    private static let keywordColor = Theme.dynamic(light: NSColor(srgbRed: 0.81, green: 0.13, blue: 0.18, alpha: 1), dark: NSColor(srgbRed: 1, green: 0.48, blue: 0.45, alpha: 1))
+    private static let stringColor = Theme.dynamic(light: NSColor(srgbRed: 0.04, green: 0.19, blue: 0.41, alpha: 1), dark: NSColor(srgbRed: 0.65, green: 0.84, blue: 1, alpha: 1))
+    private static let numberColor = Theme.dynamic(light: NSColor(srgbRed: 0.02, green: 0.31, blue: 0.68, alpha: 1), dark: NSColor(srgbRed: 0.47, green: 0.75, blue: 1, alpha: 1))
+    private static let typeColor = Theme.dynamic(light: NSColor(srgbRed: 0.51, green: 0.31, blue: 0.87, alpha: 1), dark: NSColor(srgbRed: 0.82, green: 0.66, blue: 1, alpha: 1))
+
     private static func color(_ kind: SyntaxTokenKind) -> Color? {
         switch kind {
         case .plain: nil
-        case .keyword: Theme.dynamic(light: NSColor(srgbRed: 0.81, green: 0.13, blue: 0.18, alpha: 1), dark: NSColor(srgbRed: 1, green: 0.48, blue: 0.45, alpha: 1))
-        case .string: Theme.dynamic(light: NSColor(srgbRed: 0.04, green: 0.19, blue: 0.41, alpha: 1), dark: NSColor(srgbRed: 0.65, green: 0.84, blue: 1, alpha: 1))
+        case .keyword: keywordColor
+        case .string: stringColor
         case .comment: .gray
-        case .number: Theme.dynamic(light: NSColor(srgbRed: 0.02, green: 0.31, blue: 0.68, alpha: 1), dark: NSColor(srgbRed: 0.47, green: 0.75, blue: 1, alpha: 1))
-        case .type: Theme.dynamic(light: NSColor(srgbRed: 0.51, green: 0.31, blue: 0.87, alpha: 1), dark: NSColor(srgbRed: 0.82, green: 0.66, blue: 1, alpha: 1))
+        case .number: numberColor
+        case .type: typeColor
         }
     }
 }

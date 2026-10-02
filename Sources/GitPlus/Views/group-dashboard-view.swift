@@ -60,10 +60,11 @@ struct GroupDashboardView: View {
             Divider()
             let visible = repos.filter(matches)
             if grid {
+                let sparklines = Self.sparklines(activity)
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 360), spacing: Spacing.m)], spacing: Spacing.m) {
                         ForEach(visible) { repo in
-                            RepoCard(repo: repo, sparkline: sparkline(repo.id))
+                            RepoCard(repo: repo, sparkline: sparklines[repo.id] ?? Self.emptySparkline)
                                 .onTapGesture { selection = .repo(repo.id) }
                                 .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
                         }
@@ -77,16 +78,19 @@ struct GroupDashboardView: View {
         }
     }
 
-    /// Commits per day over the last 14 days.
-    private func sparkline(_ id: UUID) -> [Int] {
+    private static let emptySparkline = Array(repeating: 0, count: 14)
+
+    /// Commits per day over the last 14 days for every repository, in one pass over the activity.
+    private static func sparklines(_ activity: [RepoCommit]) -> [UUID: [Int]] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
-        var days = Array(repeating: 0, count: 14)
-        for item in activity where item.repoID == id {
+        var result: [UUID: [Int]] = [:]
+        for item in activity {
             let d = calendar.dateComponents([.day], from: calendar.startOfDay(for: item.commit.date), to: today).day ?? 99
-            if d >= 0 && d < 14 { days[13 - d] += 1 }
+            guard d >= 0 && d < 14 else { continue }
+            result[item.repoID, default: emptySparkline][13 - d] += 1
         }
-        return days
+        return result
     }
 }
 

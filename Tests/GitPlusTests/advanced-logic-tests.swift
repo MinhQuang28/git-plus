@@ -183,3 +183,27 @@ final class ExtraParserTests: XCTestCase {
         XCTAssertNotNil(RebaseStep.problem([RebaseStep(commit: c("a"), action: .drop), RebaseStep(commit: c("b"), action: .fixup)]))
     }
 }
+
+final class ChangeMapTests: XCTestCase {
+    private func lines(_ kinds: String) -> [DiffLine] {
+        kinds.enumerated().map { i, c in
+            let kind: DiffLineKind = c == "+" ? .added : c == "-" ? .removed : c == "@" ? .hunk : .context
+            return DiffLine(id: i, kind: kind, oldNumber: nil, newNumber: nil, text: "")
+        }
+    }
+
+    func testRunsBecomeMarks() {
+        let marks = ChangeMark.build(lines("@ --++ ++ -"))
+        XCTAssertEqual(marks.map(\.kind), [.removed, .added, .added, .removed])
+        XCTAssertEqual(marks.map(\.lineID), [2, 4, 7, 10])
+        XCTAssertEqual(marks.last?.end, 1)
+    }
+
+    func testHugeDiffsAreBucketed() {
+        let big = lines(String((0..<20_000).map { i -> Character in i % 3 == 0 ? "+" : i % 3 == 1 ? "-" : " " }))
+        let marks = ChangeMark.build(big)
+        XCTAssertLessThanOrEqual(marks.count, 300)
+        XCTAssertEqual(marks.first?.kind, .mixed)
+        XCTAssertTrue(ChangeMark.build([]).isEmpty)
+    }
+}

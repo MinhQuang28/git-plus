@@ -89,14 +89,25 @@ struct GroupWorkspaceView: View {
         isLoading = true
         defer { isLoading = false }
         var merged: [RepoCommit] = []
+        // At most 8 `git log` processes at once (a group can hold dozens of repositories).
+        let targets = repos
         await withTaskGroup(of: [RepoCommit].self) { group in
-            for repo in repos {
-                group.addTask {
-                    let log = (try? await GitService(repo: repo.url).log(allRefs: true, limit: 30)) ?? []
-                    return log.map { RepoCommit(repoID: repo.id, repoName: repo.name, commit: $0) }
+            var next = 0, running = 0
+            while next < targets.count || running > 0 {
+                // Keep up to 8 running; then wait for one to finish before starting the next.
+                if next < targets.count && running < 8 {
+                    let repo = targets[next]
+                    next += 1
+                    running += 1
+                    group.addTask {
+                        let log = (try? await GitService(repo: repo.url).log(allRefs: true, limit: 30)) ?? []
+                        return log.map { RepoCommit(repoID: repo.id, repoName: repo.name, commit: $0) }
+                    }
+                    continue
                 }
+                if let part = await group.next() { merged += part }
+                running -= 1
             }
-            for await part in group { merged += part }
         }
         activity = merged.sorted { $0.commit.date > $1.commit.date }
     }

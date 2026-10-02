@@ -159,7 +159,15 @@ struct CommitBoxView: View {
         details = body.isEmpty ? trailer : body + (body.contains("Co-authored-by:") ? "\n" : "\n\n") + trailer
     }
 
+    /// Recent authors per repository path, reused for 10 minutes (the commit box is recreated on every
+    /// tab or repository switch; re-reading 400 commits each time was wasted work).
+    @MainActor private static var authorCache: [String: (date: Date, authors: [Author])] = [:]
+
     private func loadAuthors() async {
+        if let cached = Self.authorCache[repo.path], Date().timeIntervalSince(cached.date) < 600 {
+            recentAuthors = cached.authors
+            return
+        }
         let git = GitService(repo: repo.url)
         let me = ((try? await git.git(["config", "user.email"])) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let log = (try? await git.log(allRefs: true, limit: 400)) ?? []
@@ -170,6 +178,7 @@ struct CommitBoxView: View {
             return Author(name: c.author, email: c.email)
         }
         recentAuthors = Array(authors.prefix(15))
+        Self.authorCache[repo.path] = (Date(), recentAuthors)
     }
 
     private func commit(push: Bool) {
