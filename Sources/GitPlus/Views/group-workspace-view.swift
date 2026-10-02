@@ -31,7 +31,7 @@ struct GroupWorkspaceView: View {
     }
 
     @ToolbarContentBuilder private var groupToolbar: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
+        ToolbarItem(placement: .navigation) {
             Picker("View", selection: $tab) {
                 Text("Repositories").tag(0)
                 Text("Activity").tag(1)

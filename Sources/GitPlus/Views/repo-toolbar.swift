@@ -23,9 +23,6 @@ struct RepoToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–", lastFetched: status?.lastFetched)
-        }
-        ToolbarItem(placement: .principal) {
             Picker("View", selection: $tab) {
                 ForEach(RepoTab.allCases, id: \.self) { t in
                     Text(label(t)).tag(t)
@@ -33,6 +30,10 @@ struct RepoToolbar: ToolbarContent {
             }
             .pickerStyle(.segmented)
             .help("⌘1 Changes · ⌘2 History · ⌘3 Stashes")
+        }
+        // Branch sits on the right, next to the sync button.
+        ToolbarItem(placement: .primaryAction) {
+            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–", lastFetched: status?.lastFetched)
         }
         ToolbarItemGroup(placement: .primaryAction) {
             SyncToolbarButton(repo: repo, status: status)
