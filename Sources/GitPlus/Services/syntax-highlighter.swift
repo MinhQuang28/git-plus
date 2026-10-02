@@ -15,6 +15,7 @@ struct SyntaxHighlighter: Sendable {
 
     func tokenize(_ line: String, inBlockComment: inout Bool) -> [SyntaxToken] {
         guard line.count <= maxLineLength else { return [SyntaxToken(text: line, kind: .plain)] }
+        if language.hashHeadings, !inBlockComment, line.hasPrefix("#") { return [SyntaxToken(text: line, kind: .keyword)] }
         let chars = Array(line)
         var tokens: [SyntaxToken] = []
         var plain = ""
@@ -109,11 +110,11 @@ struct SyntaxHighlighter: Sendable {
     private static func color(_ kind: SyntaxTokenKind) -> Color? {
         switch kind {
         case .plain: nil
-        case .keyword: .pink
-        case .string: Color(nsColor: .systemRed)
+        case .keyword: Theme.dynamic(light: NSColor(srgbRed: 0.81, green: 0.13, blue: 0.18, alpha: 1), dark: NSColor(srgbRed: 1, green: 0.48, blue: 0.45, alpha: 1))
+        case .string: Theme.dynamic(light: NSColor(srgbRed: 0.04, green: 0.19, blue: 0.41, alpha: 1), dark: NSColor(srgbRed: 0.65, green: 0.84, blue: 1, alpha: 1))
         case .comment: .gray
-        case .number: .purple
-        case .type: .teal
+        case .number: Theme.dynamic(light: NSColor(srgbRed: 0.02, green: 0.31, blue: 0.68, alpha: 1), dark: NSColor(srgbRed: 0.47, green: 0.75, blue: 1, alpha: 1))
+        case .type: Theme.dynamic(light: NSColor(srgbRed: 0.51, green: 0.31, blue: 0.87, alpha: 1), dark: NSColor(srgbRed: 0.82, green: 0.66, blue: 1, alpha: 1))
         }
     }
 }

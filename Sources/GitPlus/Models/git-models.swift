@@ -8,6 +8,14 @@ struct RepoStatus: Hashable, Sendable {
     var behind = 0
     var changedFiles = 0
     var remote: RemoteInfo?
+    /// Modification time of FETCH_HEAD ("Last fetched … ago").
+    var lastFetched: Date?
+}
+
+struct BranchList: Sendable {
+    var current: String?
+    var local: [String] = []
+    var remote: [String] = []
 }
 
 struct Commit: Identifiable, Hashable, Sendable {

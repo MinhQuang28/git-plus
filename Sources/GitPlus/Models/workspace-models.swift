@@ -27,4 +27,24 @@ enum SidebarSelection: Hashable {
     case group(UUID)
     case ungrouped
     case repo(UUID)
+
+    /// String form for `@AppStorage` (restores the last opened repo/group).
+    var rawValue: String {
+        switch self {
+        case .group(let id): "group:\(id)"
+        case .ungrouped: "ungrouped"
+        case .repo(let id): "repo:\(id)"
+        }
+    }
+
+    init?(rawValue: String) {
+        if rawValue == "ungrouped" { self = .ungrouped; return }
+        let parts = rawValue.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2, let id = UUID(uuidString: String(parts[1])) else { return nil }
+        switch parts[0] {
+        case "group": self = .group(id)
+        case "repo": self = .repo(id)
+        default: return nil
+        }
+    }
 }

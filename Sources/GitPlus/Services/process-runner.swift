@@ -34,15 +34,16 @@ enum ProcessRunner {
     }()
 
     /// Runs `tool args…` in `directory`; returns stdout or throws `CommandError` on non-zero exit.
-    static func run(_ tool: String, _ args: [String], in directory: URL? = nil) async throws -> String {
-        let data = try await runData(tool, args, in: directory)
+    static func run(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0]) async throws -> String {
+        let data = try await runData(tool, args, in: directory, okCodes: okCodes)
         return String(decoding: data, as: UTF8.self)
     }
 
-    static func runData(_ tool: String, _ args: [String], in directory: URL? = nil) async throws -> Data {
+    /// `okCodes`: exit statuses treated as success (e.g. `git diff --no-index` exits 1 when files differ).
+    static func runData(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0]) async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(with: Result { try runBlocking(tool, args, in: directory) })
+                continuation.resume(with: Result { try runBlocking(tool, args, in: directory, okCodes: okCodes) })
             }
         }
     }
@@ -52,7 +53,7 @@ enum ProcessRunner {
         (try? await run("/usr/bin/which", [tool])) != nil
     }
 
-    private static func runBlocking(_ tool: String, _ args: [String], in directory: URL?) throws -> Data {
+    private static func runBlocking(_ tool: String, _ args: [String], in directory: URL?, okCodes: Set<Int32>) throws -> Data {
         let process = Process()
         if tool.hasPrefix("/") {
             process.executableURL = URL(fileURLWithPath: tool)
@@ -82,7 +83,7 @@ enum ProcessRunner {
         process.waitUntilExit()
         errGroup.wait()
 
-        guard process.terminationStatus == 0 else {
+        guard okCodes.contains(process.terminationStatus) else {
             throw CommandError(
                 command: ([tool] + args).joined(separator: " "),
                 status: process.terminationStatus,

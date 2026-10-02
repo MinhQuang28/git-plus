@@ -56,8 +56,25 @@ final class SyntaxHighlighterTests: XCTestCase {
         XCTAssertNotNil(SyntaxLanguage.forPath("src/App.tsx"))
         XCTAssertNotNil(SyntaxLanguage.forPath("Dockerfile"))
         XCTAssertNil(SyntaxLanguage.forPath("image.png"))
-        XCTAssertTrue(DiffHighlighter.highlight([line(1, .added)], path: "a.png").isEmpty)
-        XCTAssertEqual(DiffHighlighter.highlight([line(1, .added)], path: "a.py").count, 1)
+        XCTAssertTrue(DiffRenderer.highlight([line(1, .added)], path: "a.png").isEmpty)
+        XCTAssertEqual(DiffRenderer.highlight([line(1, .added)], path: "a.py").count, 1)
+    }
+
+    func testIntralineRanges() throws {
+        let (old, new) = try XCTUnwrap(IntralineDiff.changedRanges("manifest_20260914_0326.md", "manifest_20260921_0721.md"))
+        XCTAssertEqual(old, 15..<22)
+        XCTAssertEqual(new, 15..<22)
+        XCTAssertNil(IntralineDiff.changedRanges("abc", "xyz"))
+        XCTAssertNil(IntralineDiff.changedRanges("same", "same"))
+        let (o2, n2) = try XCTUnwrap(IntralineDiff.changedRanges("count = 1", "count = 10"))
+        XCTAssertTrue(o2.isEmpty)
+        XCTAssertEqual(n2, 9..<10)
+    }
+
+    func testMarkdownHeading() {
+        var block = false
+        let tokens = SyntaxHighlighter(language: .markdown).tokenize("## App Status", inBlockComment: &block)
+        XCTAssertEqual(tokens, [SyntaxToken(text: "## App Status", kind: .keyword)])
     }
 
     private func line(_ id: Int, _ kind: DiffLineKind) -> DiffLine {

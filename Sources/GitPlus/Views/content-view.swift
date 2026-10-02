@@ -1,17 +1,21 @@
 import SwiftUI
 
+/// Window root: GitHub Desktop–style top bar + repository or group workspace.
 struct ContentView: View {
     @Environment(WorkspaceStore.self) private var store
-    @State private var selection: SidebarSelection?
+    @AppStorage("selection") private var storedSelection = ""
+
+    private var selection: Binding<SidebarSelection?> {
+        Binding(get: { SidebarSelection(rawValue: storedSelection) }, set: { storedSelection = $0?.rawValue ?? "" })
+    }
 
     var body: some View {
         @Bindable var store = store
-        NavigationSplitView {
-            SidebarView(selection: $selection)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 400)
-        } detail: {
-            detail
+        VStack(spacing: 0) {
+            TopBarView(selection: selection)
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(Theme.paneBackground)
         .task { await store.refreshStatus() }
         .alert("Git Plus", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") { store.errorMessage = nil }
@@ -20,22 +24,14 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder private var detail: some View {
-        switch selection {
+    @ViewBuilder private var content: some View {
+        switch selection.wrappedValue {
         case .repo(let id):
-            if let repo = store.repo(id) {
-                RepoDetailView(repo: repo).id(repo.id)
-            } else {
-                placeholder
-            }
+            if let repo = store.repo(id) { RepoWorkspaceView(repo: repo).id(repo.id) } else { placeholder }
         case .group(let id):
-            if let group = store.group(id) {
-                GroupOverviewView(groupID: group.id, title: group.name).id(group.id)
-            } else {
-                placeholder
-            }
+            if store.group(id) != nil { GroupWorkspaceView(groupID: id, selection: selection).id(id) } else { placeholder }
         case .ungrouped:
-            GroupOverviewView(groupID: nil, title: "Ungrouped").id("ungrouped")
+            GroupWorkspaceView(groupID: nil, selection: selection).id("ungrouped")
         case nil:
             placeholder
         }
@@ -43,9 +39,9 @@ struct ContentView: View {
 
     private var placeholder: some View {
         ContentUnavailableView {
-            Label("No Selection", systemImage: "square.stack.3d.up")
+            Label(store.workspace.repos.isEmpty ? "No Repositories" : "No Selection", systemImage: "square.stack.3d.up")
         } description: {
-            Text("Add repositories with ⌘O, then select a group or repository.")
+            Text("Add repositories with ⌘O, or pick one from “Current Repository” above.")
         } actions: {
             Button("Add Repositories…") {
                 let urls = FolderPicker.choose()

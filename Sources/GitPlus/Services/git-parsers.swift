@@ -63,4 +63,24 @@ enum GitParsers {
         }
         return files
     }
+
+    /// Parses `git status --porcelain=v1 -z`. Renames are `R  new\0old\0`.
+    static func workingChanges(_ output: String) -> [ChangedFile] {
+        var files: [ChangedFile] = []
+        var entries = output.split(separator: "\0", omittingEmptySubsequences: true).makeIterator()
+        while let entry = entries.next() {
+            guard entry.count > 3 else { continue }
+            let x = entry[entry.startIndex], y = entry[entry.index(after: entry.startIndex)]
+            let path = String(entry.dropFirst(3))
+            if x == "R" || x == "C" {
+                files.append(ChangedFile(status: "R", path: path, oldPath: entries.next().map(String.init)))
+            } else if x == "?" {
+                files.append(ChangedFile(status: "?", path: path, oldPath: nil))
+            } else {
+                let code = [x, y].first { $0 != " " } ?? "M"
+                files.append(ChangedFile(status: x == "D" || y == "D" ? "D" : x == "A" ? "A" : String(code == "U" ? "M" : code), path: path, oldPath: nil))
+            }
+        }
+        return files.sorted { $0.path < $1.path }
+    }
 }

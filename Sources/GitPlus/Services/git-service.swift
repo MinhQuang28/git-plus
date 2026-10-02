@@ -18,7 +18,15 @@ struct GitService: Sendable {
         let out = try await git(["status", "--porcelain=v2", "--branch"])
         var status = GitParsers.status(out)
         status.remote = await remote()
+        status.lastFetched = await lastFetched()
         return status
+    }
+
+    private func lastFetched() async -> Date? {
+        guard let rel = try? await git(["rev-parse", "--git-path", "FETCH_HEAD"]) else { return nil }
+        let path = rel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = path.hasPrefix("/") ? URL(fileURLWithPath: path) : repo.appendingPathComponent(path)
+        return (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
     /// Remote of `origin`, falling back to the first configured remote.
@@ -31,10 +39,34 @@ struct GitService: Sendable {
         return RemoteInfo.parse(url)
     }
 
-    func branches() async throws -> [String] {
-        let out = try await git(["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)", "refs/heads", "refs/remotes"])
-        return out.split(separator: "\n").map(String.init).filter { !$0.hasSuffix("/HEAD") }
+    /// Local and remote branches, most recently committed first.
+    func branches() async throws -> BranchList {
+        let out = try await git(["for-each-ref", "--sort=-committerdate", "--format=%(refname)%09%(HEAD)", "refs/heads", "refs/remotes"])
+        var list = BranchList()
+        for line in out.split(separator: "\n") {
+            let cols = line.split(separator: "\t", omittingEmptySubsequences: false)
+            let ref = String(cols[0])
+            if ref.hasPrefix("refs/heads/") {
+                let name = String(ref.dropFirst("refs/heads/".count))
+                list.local.append(name)
+                if cols.count > 1, cols[1] == "*" { list.current = name }
+            } else if ref.hasPrefix("refs/remotes/"), !ref.hasSuffix("/HEAD") {
+                list.remote.append(String(ref.dropFirst("refs/remotes/".count)))
+            }
+        }
+        return list
     }
+
+    /// Switches to a local branch, or creates a tracking branch for `remote/name`.
+    func switchBranch(_ name: String, isRemote: Bool = false) async throws {
+        if isRemote {
+            _ = try await git(["switch", "--track", name])
+        } else {
+            _ = try await git(["switch", name])
+        }
+    }
+
+    func createBranch(_ name: String) async throws { _ = try await git(["switch", "-c", name]) }
 
     // MARK: History
 
@@ -74,4 +106,8 @@ struct GitService: Sendable {
 
     func fetch() async throws { _ = try await git(["fetch", "--all", "--prune"]) }
     func pull() async throws { _ = try await git(["pull", "--ff-only"]) }
+    /// Pushes the current branch; sets upstream on first push.
+    func push(setUpstream: Bool) async throws {
+        _ = try await git(setUpstream ? ["push", "-u", "origin", "HEAD"] : ["push"])
+    }
 }

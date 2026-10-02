@@ -43,8 +43,31 @@ enum SplitDiffBuilder {
     }
 }
 
-/// Syntax highlighting for diff lines, keyed by `DiffLine.id`.
-enum DiffHighlighter {
+/// Builds the styled text of every diff line: syntax colors + GitHub-style changed-word background.
+enum DiffRenderer {
+    static func render(_ lines: [DiffLine], rows: [SplitDiffRow], path: String, syntax: Bool) -> [Int: AttributedString] {
+        var result = syntax ? highlight(lines, path: path) : [:]
+        for line in lines where result[line.id] == nil && line.kind != .hunk && line.kind != .meta {
+            result[line.id] = AttributedString(line.text)
+        }
+        // Paired removed/added lines get their differing middle section emphasized.
+        for row in rows {
+            guard let old = row.left, let new = row.right, old.kind == .removed, new.kind == .added,
+                  let (oldRange, newRange) = IntralineDiff.changedRanges(old.text, new.text) else { continue }
+            emphasize(&result[old.id], oldRange, Theme.removedWord)
+            emphasize(&result[new.id], newRange, Theme.addedWord)
+        }
+        return result
+    }
+
+    private static func emphasize(_ text: inout AttributedString?, _ range: Range<Int>, _ color: Color) {
+        guard var attr = text, !range.isEmpty, range.upperBound <= attr.characters.count else { return }
+        let start = attr.characters.index(attr.startIndex, offsetBy: range.lowerBound)
+        let end = attr.characters.index(attr.startIndex, offsetBy: range.upperBound)
+        attr[start..<end].backgroundColor = color
+        text = attr
+    }
+
     /// Old and new sides are tokenized separately so multi-line comments stay correct on each side.
     static func highlight(_ lines: [DiffLine], path: String) -> [Int: AttributedString] {
         guard let language = SyntaxLanguage.forPath(path) else { return [:] }
@@ -65,5 +88,20 @@ enum DiffHighlighter {
             }
         }
         return result
+    }
+}
+
+/// Common-prefix / common-suffix word diff (what GitHub Desktop shows for edited lines).
+enum IntralineDiff {
+    /// Character ranges that differ in `old` and `new`; nil when lines share nothing or are identical.
+    static func changedRanges(_ old: String, _ new: String) -> (Range<Int>, Range<Int>)? {
+        let a = Array(old), b = Array(new)
+        guard a != b, a.count <= 2_000, b.count <= 2_000 else { return nil }
+        var prefix = 0
+        while prefix < a.count, prefix < b.count, a[prefix] == b[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < a.count - prefix, suffix < b.count - prefix, a[a.count - 1 - suffix] == b[b.count - 1 - suffix] { suffix += 1 }
+        guard prefix + suffix > 0 else { return nil }   // completely different line: tint whole line only
+        return (prefix..<(a.count - suffix), prefix..<(b.count - suffix))
     }
 }

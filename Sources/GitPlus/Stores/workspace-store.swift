@@ -7,6 +7,8 @@ final class WorkspaceStore {
     private(set) var workspace = Workspace()
     private(set) var statuses: [UUID: RepoStatus] = [:]
     private(set) var busy: Set<UUID> = []
+    /// Bumped after every mutation of a repo so views can reload history/changes.
+    private(set) var revisions: [UUID: Int] = [:]
     var errorMessage: String?
 
     private let fileURL: URL
@@ -48,6 +50,15 @@ final class WorkspaceStore {
         guard let i = workspace.groups.firstIndex(where: { $0.id == id }), !name.isEmpty else { return }
         workspace.groups[i].name = name
         save()
+    }
+
+    /// "Ungrouped" is virtual: renaming it turns its repos into a real group with that name.
+    @discardableResult
+    func renameUngrouped(to name: String) -> UUID? {
+        guard !name.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        let group = createGroup(named: name)
+        move(repoIDs: repos(in: nil).map(\.id), to: group.id)
+        return group.id
     }
 
     /// Deletes the group; its repos become ungrouped (never removed).
@@ -107,6 +118,27 @@ final class WorkspaceStore {
         }
     }
 
+    /// Runs one user-triggered git mutation, reports failures, refreshes status. Returns success.
+    @discardableResult
+    func perform(_ id: UUID, _ label: String, _ op: @escaping @Sendable (GitService) async throws -> Void) async -> Bool {
+        guard let repo = repo(id), !busy.contains(id) else { return false }
+        busy.insert(id)
+        defer { busy.remove(id) }
+        var ok = true
+        do { try await op(GitService(repo: repo.url)) } catch {
+            errorMessage = "\(label) failed:\n\(error.localizedDescription)"
+            ok = false
+        }
+        revisions[id, default: 0] += 1
+        await refreshStatus([id])
+        return ok
+    }
+
+    func push(_ id: UUID) async {
+        let needsUpstream = statuses[id]?.upstream == nil
+        await perform(id, "push") { try await $0.push(setUpstream: needsUpstream) }
+    }
+
     func fetch(_ ids: [UUID]) async { await runEach(ids, label: "fetch") { try await $0.fetch() } }
     func pull(_ ids: [UUID]) async { await runEach(ids, label: "pull") { try await $0.pull() } }
 
@@ -126,6 +158,7 @@ final class WorkspaceStore {
                 if let failure { failures.append(failure) }
             }
         }
+        targets.forEach { revisions[$0.id, default: 0] += 1 }
         await refreshStatus(targets.map(\.id))
         if !failures.isEmpty { errorMessage = "\(label) failed:\n" + failures.joined(separator: "\n") }
     }

@@ -1,69 +1,105 @@
 import SwiftUI
 
-private let diffFont = Font.system(size: 12, design: .monospaced)
+private let diffFont = Font.system(size: 12.5, design: .monospaced)
+private let gutterWidth: CGFloat = 46
 
-private func lineBackground(_ kind: DiffLineKind?) -> Color {
+private func lineColor(_ kind: DiffLineKind?) -> Color {
     switch kind {
-    case .added: .green.opacity(0.15)
-    case .removed: .red.opacity(0.15)
-    case .hunk: .blue.opacity(0.08)
-    case nil: .secondary.opacity(0.05)   // empty side of a split row
-    default: .clear
+    case .added: Theme.addedLine
+    case .removed: Theme.removedLine
+    case .hunk: Theme.hunkLine
+    case nil: Theme.emptySide          // empty side of a split row
+    default: Theme.contextLine
     }
 }
 
-private func gutter(_ n: Int?) -> some View {
+private func gutterColor(_ kind: DiffLineKind?) -> Color {
+    switch kind {
+    case .added: Theme.addedGutter
+    case .removed: Theme.removedGutter
+    case .hunk: Theme.hunkLine
+    case nil: Theme.emptySide
+    default: Theme.gutter
+    }
+}
+
+private func marker(_ kind: DiffLineKind) -> String {
+    switch kind {
+    case .added: "+"
+    case .removed: "−"
+    default: " "
+    }
+}
+
+/// Line number cell; fills the row height so wrapped lines keep a continuous gutter.
+private func gutter(_ n: Int?, _ kind: DiffLineKind?) -> some View {
     Text(n.map(String.init) ?? "")
-        .frame(width: 48, alignment: .trailing)
-        .padding(.trailing, 6)
-        .foregroundStyle(.tertiary)
-        .background(Color.secondary.opacity(0.06))
+        .foregroundStyle(Theme.gutterText)
+        .frame(width: gutterWidth, alignment: .trailing)
+        .padding(.trailing, 8)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(gutterColor(kind))
 }
 
-/// Line content: highlighted when available, dimmed for hunk/meta lines.
-private func lineText(_ line: DiffLine, _ highlighted: AttributedString?) -> Text {
-    if let highlighted { return Text(highlighted) }
-    let text = Text(line.text.isEmpty ? " " : line.text)
-    return line.kind == .hunk || line.kind == .meta ? text.foregroundColor(.secondary) : text
+/// Wrapped line content with syntax + changed-word styling.
+private func content(_ line: DiffLine, _ styled: AttributedString?) -> some View {
+    let text: Text = if let styled, !styled.characters.isEmpty { Text(styled) } else { Text(line.text.isEmpty ? " " : line.text) }
+    return text
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 1.5)
 }
 
-/// Unified diff row: old no. | new no. | marker | text (no wrapping, scrolls horizontally).
-struct DiffLineView: View {
+/// Hunk header (`@@ -1,3 +1,3 @@`) spanning the full width.
+private struct HunkRow: View {
     let line: DiffLine
-    let highlighted: AttributedString?
+    let gutters: Int
 
     var body: some View {
         HStack(spacing: 0) {
-            gutter(line.oldNumber)
-            gutter(line.newNumber)
-            Text(marker(line.kind)).frame(width: 16).foregroundStyle(.secondary)
-            lineText(line, highlighted).fixedSize(horizontal: true, vertical: false)
+            Color.clear.frame(width: CGFloat(gutters) * (gutterWidth + 8) + 20)
+            Text(line.text).foregroundStyle(Theme.gutterText).lineLimit(1)
             Spacer(minLength: 0)
         }
         .font(diffFont)
-        .padding(.vertical, line.kind == .hunk ? 3 : 0)
-        .background(lineBackground(line.kind))
+        .padding(.vertical, 5)
+        .background(Theme.hunkLine)
     }
 }
 
-/// Side-by-side row: old version left, new version right; long lines wrap.
+/// Unified row: old no. | new no. | marker | text — the GitHub Desktop layout.
+struct DiffLineView: View {
+    let line: DiffLine
+    let styled: AttributedString?
+
+    var body: some View {
+        if line.kind == .hunk || line.kind == .meta {
+            HunkRow(line: line, gutters: 2)
+        } else {
+            HStack(alignment: .top, spacing: 0) {
+                gutter(line.oldNumber, line.kind)
+                gutter(line.newNumber, line.kind)
+                Text(marker(line.kind)).frame(width: 20).padding(.vertical, 1.5)
+                content(line, styled)
+            }
+            .font(diffFont)
+            .background(lineColor(line.kind))
+        }
+    }
+}
+
+/// Side-by-side row: old version left, new version right.
 struct SplitDiffRowView: View {
     let row: SplitDiffRow
-    let highlights: [Int: AttributedString]
+    let styles: [Int: AttributedString]
 
     var body: some View {
         if let full = row.full {
-            HStack(spacing: 0) {
-                lineText(full, nil).padding(.leading, 60)
-                Spacer(minLength: 0)
-            }
-            .font(diffFont)
-            .padding(.vertical, 3)
-            .background(lineBackground(full.kind))
+            HunkRow(line: full, gutters: 1)
         } else {
             HStack(alignment: .top, spacing: 0) {
                 side(row.left, number: row.left?.oldNumber)
-                Divider()
+                Rectangle().fill(Theme.separator).frame(width: 1)
                 side(row.right, number: row.right?.newNumber)
             }
             .font(diffFont)
@@ -72,23 +108,11 @@ struct SplitDiffRowView: View {
 
     private func side(_ line: DiffLine?, number: Int?) -> some View {
         HStack(alignment: .top, spacing: 0) {
-            gutter(number).frame(maxHeight: .infinity, alignment: .top)
-            Text(line.map { marker($0.kind) } ?? "").frame(width: 16).foregroundStyle(.secondary)
-            Group {
-                if let line { lineText(line, highlights[line.id]) } else { Text(" ") }
-            }
-            .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+            gutter(number, line?.kind)
+            Text(line.map { marker($0.kind) } ?? " ").frame(width: 20).padding(.vertical, 1.5)
+            if let line { content(line, styles[line.id]) } else { Spacer(minLength: 0) }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(lineBackground(line?.kind))
-    }
-}
-
-private func marker(_ kind: DiffLineKind) -> String {
-    switch kind {
-    case .added: "+"
-    case .removed: "−"
-    default: ""
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(lineColor(line?.kind))
     }
 }

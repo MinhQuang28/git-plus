@@ -8,6 +8,8 @@ struct SyntaxLanguage: Sendable {
     var stringDelimiters: Set<Character> = ["\"", "'"]
     /// Treat `Capitalized` identifiers as types.
     var capitalizedAreTypes = true
+    /// Markdown: a line starting with `#` is a heading (colored as a keyword).
+    var hashHeadings = false
 
     static let plain = SyntaxLanguage(stringDelimiters: [], capitalizedAreTypes: false)
 
@@ -29,6 +31,7 @@ struct SyntaxLanguage: Sendable {
         case "yml", "yaml": return yaml
         case "sql": return sql
         case "json", "jsonc": return json
+        case "md", "markdown", "mdx": return markdown
         case "css", "scss", "less": return css
         case "html", "htm", "xml", "plist", "svg", "xib", "storyboard": return markup
         default: return nil
@@ -74,5 +77,6 @@ struct SyntaxLanguage: Sendable {
         lineComments: ["--"], blockComment: cStyle, capitalizedAreTypes: false)
     static let json = SyntaxLanguage(keywords: words("true false null"), stringDelimiters: ["\""], capitalizedAreTypes: false)
     static let css = SyntaxLanguage(keywords: words("important media import from to"), blockComment: cStyle, capitalizedAreTypes: false)
+    static let markdown = SyntaxLanguage(blockComment: ("<!--", "-->"), stringDelimiters: ["`"], capitalizedAreTypes: false, hashHeadings: true)
     static let markup = SyntaxLanguage(blockComment: ("<!--", "-->"), stringDelimiters: ["\""], capitalizedAreTypes: false)
 }
