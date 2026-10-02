@@ -151,7 +151,7 @@ struct HistoryPaneView: View {
                     CommitListRow(commit: commit, showsRefs: allBranches || showsGraph, isHead: commit.hash == headHash)
                 }
                 .fixedSize(horizontal: false, vertical: true)
-                .listRowInsets(showsGraph ? EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 8) : EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 8))
+                .listRowInsets(showsGraph ? EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 8) : EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 8))
                 .listRowSeparator(showsGraph ? .hidden : .visible)
                 .tag(commit.hash)
                 .onAppear { if index == commits.count - 1 { Task { await loadMore() } } }

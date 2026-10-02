@@ -16,9 +16,9 @@ struct CommitListRow: View {
 
     var body: some View {
         // Compact: small type and tight spacing so more history fits on screen.
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(commit.subject).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                Text(commit.subject).font(.system(size: 13, weight: .medium)).lineLimit(1)
                 Spacer(minLength: 0)
                 ForEach(badges, id: \.self) { ref in
                     let isTag = ref.hasPrefix("tag: ")
@@ -38,9 +38,9 @@ struct CommitListRow: View {
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background(.tint.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
                 }
-                AvatarView(name: commit.author, email: commit.email, size: 13)
+                AvatarView(name: commit.author, email: commit.email, size: 14)
                 Text("\(commit.author) • \(RelativeTime.string(commit.date))")
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 if isHead {
@@ -50,7 +50,7 @@ struct CommitListRow: View {
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
         .help("\(commit.shortHash) — \(commit.subject)\n\(commit.author) <\(commit.email)>\n\(commit.date.formatted(date: .abbreviated, time: .shortened))")
     }
 }
