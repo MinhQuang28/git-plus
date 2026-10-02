@@ -13,6 +13,7 @@ struct CommitDetailView: View {
     @State private var body_ = ""
     @State private var error: String?
     @State private var showFullMessage = false
+    @Environment(\.inspectFile) private var inspectFile
 
     private var git: GitService { GitService(repo: repoURL) }
 
@@ -22,7 +23,7 @@ struct CommitDetailView: View {
             Rectangle().fill(Theme.separator).frame(height: 1)
             HStack(spacing: 0) {
                 ResizableColumn("width.fileList", initial: 300, range: 200...520) {
-                    ChangedFileList(files: files, selection: $selectedFile)
+                    ChangedFileList(files: files, selection: $selectedFile, contextMenu: fileMenu)
                 }
                 Group {
                     if let file = files.first(where: { $0.id == selectedFile }) {
@@ -104,6 +105,22 @@ struct CommitDetailView: View {
             }
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    /// History / blame for a file of this commit (only inside a repository workspace).
+    private var fileMenu: ((ChangedFile) -> AnyView)? {
+        guard let inspect = inspectFile else { return nil }
+        return { file in
+            AnyView(Group {
+                Button("Show File History") { inspect(FileInspection(path: file.path, mode: .history)) }
+                Button("Blame") { inspect(FileInspection(path: file.path, mode: .blame)) }
+                Divider()
+                Button("Copy Path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(file.path, forType: .string)
+                }
+            })
         }
     }
 

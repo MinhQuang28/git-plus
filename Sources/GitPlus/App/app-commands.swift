@@ -9,6 +9,7 @@ extension Notification.Name {
     static let showRemotes = Notification.Name("gitplus.showRemotes")
     static let showMerge = Notification.Name("gitplus.showMerge")
     static let showConflicts = Notification.Name("gitplus.showConflicts")
+    static let showActivity = Notification.Name("gitplus.showActivity")
 }
 
 /// Actions shared by the menu bar, keyboard shortcuts and the command palette.
@@ -78,6 +79,8 @@ struct AppCommands: Commands {
         CommandGroup(after: .sidebar) {
             Button("Command Palette…") { RepoActions.post(.showCommandPalette) }
                 .keyboardShortcut("k")
+            Button("Activity…") { RepoActions.post(.showActivity) }
+                .keyboardShortcut("a", modifiers: [.command, .option])
         }
         CommandMenu("Repository") {
             Button("Show Repository List") { RepoActions.post(.showRepositoryPicker) }

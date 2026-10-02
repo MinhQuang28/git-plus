@@ -11,6 +11,9 @@ struct BranchPickerView: View {
     @State private var renaming: String?
     @State private var newName = ""
     @State private var deleting: (name: String, remote: Bool)?
+    @State private var showTags = false
+    @State private var tags: [TagInfo] = []
+    @State private var deletingTag: TagInfo?
 
     private var trimmed: String { filter.trimmingCharacters(in: .whitespaces) }
     private func matches(_ b: String) -> Bool { trimmed.isEmpty || b.localizedCaseInsensitiveContains(trimmed) }
@@ -18,45 +21,39 @@ struct BranchPickerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Filter or create branch", text: $filter)
+            Picker("", selection: $showTags) {
+                Text("Branches").tag(false)
+                Text("Tags").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding([.horizontal, .top], 10)
+            TextField(showTags ? "Filter tags" : "Filter or create branch", text: $filter)
                 .textFieldStyle(.roundedBorder)
-                .onSubmit(createIfNew)
+                .onSubmit { if !showTags { createIfNew() } }
                 .padding(10)
             Divider()
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    if canCreate {
-                        row(icon: "plus.circle.fill", title: "Create branch “\(trimmed)”", detail: "from \(current)", action: createIfNew)
-                    }
-                    sectionHeader("Local branches")
-                    ForEach(branches.local.filter(matches), id: \.self) { name in
-                        let isCurrent = name == branches.current
-                        row(icon: isCurrent ? "checkmark.circle.fill" : "arrow.triangle.branch", title: name,
-                            detail: isCurrent ? "current" : nil) {
-                            guard !isCurrent else { isPresented = false; return }
-                            run("switch branch", "Switched to \(name)") { try await $0.switchBranch(name) }
-                        }
-                        .contextMenu { localMenu(name, isCurrent: isCurrent) }
-                    }
-                    let localSet = Set(branches.local)
-                    let remotes = branches.remote.filter { matches($0) && !localSet.contains(Self.shortName($0)) }
-                    if !remotes.isEmpty {
-                        sectionHeader("Remote branches")
-                        ForEach(remotes, id: \.self) { name in
-                            row(icon: "cloud", title: name, detail: nil) {
-                                run("checkout remote branch", "Checked out \(Self.shortName(name))") { try await $0.switchBranch(name, isRemote: true) }
-                            }
-                            .contextMenu { remoteMenu(name) }
-                        }
+            if showTags { tagList } else { branchList }
+            Divider()
+            HStack {
+                if showTags {
+                    Button("Push All Tags") { run("push tags", "Pushed all tags") { try await $0.pushAllTags() } }
+                        .disabled(tags.isEmpty)
+                } else {
+                    Button("Merge into \(current)…") {
+                        isPresented = false
+                        RepoActions.post(.showMerge)
                     }
                 }
+                Spacer()
+                Text(showTags ? "Right-click a tag for more" : "Right-click a branch for more").font(.caption).foregroundStyle(.secondary)
             }
-            Divider()
-            Text("Right-click a branch to merge, rebase, rename or delete")
-                .font(.caption).foregroundStyle(.secondary).padding(6)
+            .controlSize(.small)
+            .padding(8)
         }
-        .frame(width: 380, height: 500)
+        .frame(width: 380, height: 520)
         .task { branches = (try? await GitService(repo: repo.url).branches()) ?? BranchList() }
+        .task(id: showTags) { if showTags { tags = (try? await GitService(repo: repo.url).tags()) ?? [] } }
         .alert("Rename \(renaming ?? "")", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("New name", text: $newName)
             Button("Rename") {
@@ -81,6 +78,74 @@ struct BranchPickerView: View {
             }
         } message: {
             Text(deleting?.remote == true ? "The branch will be removed from the server for everyone." : "Unmerged commits on this branch may be lost.")
+        }
+    }
+
+    private var tagList: some View {
+        let q = trimmed
+        let visible = tags.filter { q.isEmpty || $0.name.localizedCaseInsensitiveContains(q) }
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(visible) { tag in
+                    row(icon: "tag", title: tag.name, detail: tag.date.map(RelativeTime.string)) {
+                        run("checkout tag", "Checked out \(tag.name)") { try await $0.checkout(commit: "refs/tags/\(tag.name)") }
+                    }
+                    .help(tag.subject.isEmpty ? tag.target : "\(tag.target) — \(tag.subject)")
+                    .contextMenu {
+                        Button("Check Out (detached)") { run("checkout tag", "Checked out \(tag.name)") { try await $0.checkout(commit: "refs/tags/\(tag.name)") } }
+                        Button("Push to Remote") { run("push tag", "Pushed \(tag.name)") { try await $0.pushTag(tag.name) } }
+                        Button("Copy Name") { copy(tag.name) }
+                        Divider()
+                        Button("Delete…", role: .destructive) { deletingTag = tag }
+                    }
+                }
+                if visible.isEmpty {
+                    Text(tags.isEmpty ? "No tags yet — create one from a commit's menu in History." : "No tags match")
+                        .font(.callout).foregroundStyle(.secondary).padding()
+                }
+            }
+        }
+        .confirmationDialog("Delete tag \(deletingTag?.name ?? "")?", isPresented: Binding(get: { deletingTag != nil }, set: { if !$0 { deletingTag = nil } })) {
+            if let tag = deletingTag {
+                Button("Delete Locally", role: .destructive) { run("delete tag", "Deleted tag \(tag.name)") { try await $0.deleteTag(tag.name) } }
+                Button("Delete Locally and on Remote", role: .destructive) {
+                    run("delete tag", "Deleted tag \(tag.name) everywhere") {
+                        try await $0.deleteRemoteTag(tag.name)
+                        try await $0.deleteTag(tag.name)
+                    }
+                }
+            }
+        }
+    }
+
+    private var branchList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if canCreate {
+                    row(icon: "plus.circle.fill", title: "Create branch “\(trimmed)”", detail: "from \(current)", action: createIfNew)
+                }
+                sectionHeader("Local branches")
+                ForEach(branches.local.filter(matches), id: \.self) { name in
+                    let isCurrent = name == branches.current
+                    row(icon: isCurrent ? "checkmark.circle.fill" : "arrow.triangle.branch", title: name,
+                        detail: isCurrent ? "current" : nil) {
+                        guard !isCurrent else { isPresented = false; return }
+                        run("switch branch", "Switched to \(name)") { try await $0.switchBranch(name) }
+                    }
+                    .contextMenu { localMenu(name, isCurrent: isCurrent) }
+                }
+                let localSet = Set(branches.local)
+                let remotes = branches.remote.filter { matches($0) && !localSet.contains(Self.shortName($0)) }
+                if !remotes.isEmpty {
+                    sectionHeader("Remote branches")
+                    ForEach(remotes, id: \.self) { name in
+                        row(icon: "cloud", title: name, detail: nil) {
+                            run("checkout remote branch", "Checked out \(Self.shortName(name))") { try await $0.switchBranch(name, isRemote: true) }
+                        }
+                        .contextMenu { remoteMenu(name) }
+                    }
+                }
+            }
         }
     }
 
@@ -154,3 +219,4 @@ struct BranchPickerView: View {
         .hoverHighlight()
     }
 }
+

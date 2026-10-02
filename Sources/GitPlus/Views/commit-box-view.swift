@@ -178,9 +178,10 @@ struct CommitBoxView: View {
         let stageFirst = stagesAll, isAmend = amend
         let needsUpstream = status?.upstream == nil
         let id = repo.id, branch = branch
+        let undo: (@Sendable (GitService) async throws -> Void)? = isAmend ? nil : { git in try await git.undoLastCommit() }
         Task {
             let ok = await store.perform(id, "commit", success: push ? nil : isAmend ? "Amended last commit" : "Committed to \(branch)",
-                                         undo: isAmend ? nil : { try await $0.undoLastCommit() }) {
+                                         undo: undo) {
                 if stageFirst { try await $0.stageAll() }
                 try await $0.commit(summary: s, description: d, amend: isAmend)
             }
