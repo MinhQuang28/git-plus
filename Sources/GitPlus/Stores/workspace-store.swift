@@ -112,6 +112,13 @@ final class WorkspaceStore {
         }
     }
 
+    /// Silent background fetch (auto-fetch): no toast, no error alert.
+    func backgroundFetch(_ id: UUID) async {
+        guard let repo = repo(id), !busy.contains(id) else { return }
+        try? await GitService(repo: repo.url).fetch()
+        await refreshStatus([id])
+    }
+
     func fetch(_ ids: [UUID]) async { await runEach(ids, label: "fetch", done: "Fetched") { try await $0.fetch() } }
     func pull(_ ids: [UUID]) async { await runEach(ids, label: "pull", done: "Pulled") { try await $0.pull() } }
 

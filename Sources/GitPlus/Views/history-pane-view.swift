@@ -19,6 +19,18 @@ struct HistoryPaneView: View {
     @State private var counts = (ahead: 0, behind: 0)
     @State private var request: CommitRequest?
     @FocusState private var compareFocused: Bool
+    @AppStorage("historyAllBranches") private var allBranches = false
+    @State private var query = ""
+
+    /// Local filter on subject, author, email or SHA prefix.
+    private var visible: [Commit] {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return commits }
+        return commits.filter {
+            $0.subject.localizedCaseInsensitiveContains(q) || $0.author.localizedCaseInsensitiveContains(q)
+                || $0.email.localizedCaseInsensitiveContains(q) || $0.hash.hasPrefix(q.lowercased())
+        }
+    }
 
     private var git: GitService { GitService(repo: repo.url) }
     private var revision: Int { store.revisions[repo.id] ?? 0 }
@@ -30,7 +42,7 @@ struct HistoryPaneView: View {
             if compareFocused && compareBranch == nil {
                 branchSuggestions
             } else {
-                if let compareBranch { compareTabs(compareBranch) }
+                if let compareBranch { compareTabs(compareBranch) } else { viewOptions }
                 commitList
             }
         }
@@ -38,7 +50,7 @@ struct HistoryPaneView: View {
             branches = (try? await git.branches()) ?? BranchList()
             headHash = await git.headHash()
         }
-        .task(id: "\(revision)|\(compareBranch ?? "")|\(side.rawValue)") { await load() }
+        .task(id: "\(revision)|\(compareBranch ?? "")|\(side.rawValue)|\(allBranches)") { await load() }
         .onChange(of: selection) { selected = commits.filter { selection.contains($0.hash) } }
         .modifier(CommitRequestPresenter(repo: repo, request: $request))
     }
@@ -93,9 +105,27 @@ struct HistoryPaneView: View {
         .help(side == .behind ? "Commits in \(branch) not in your branch" : "Commits in your branch not in \(branch)")
     }
 
+    private var viewOptions: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.system(size: 11))
+                TextField("Filter message, author, SHA", text: $query).textFieldStyle(.plain).font(.system(size: 12))
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 7).padding(.vertical, 4)
+            .background(Capsule().fill(Theme.headerBackground))
+            .overlay(Capsule().stroke(Theme.separator))
+            OptionChip(title: "All", symbol: "arrow.triangle.branch", isOn: $allBranches)
+                .help("Show commits from all branches")
+        }
+        .padding(.horizontal, 8).padding(.bottom, 6)
+    }
+
     private var commitList: some View {
-        List(commits, selection: $selection) { commit in
-            CommitListRow(commit: commit).listRowSeparator(.visible)
+        List(visible, selection: $selection) { commit in
+            CommitListRow(commit: commit, showsRefs: allBranches).listRowSeparator(.visible)
         }
         .listStyle(.plain)
         .contextMenu(forSelectionType: String.self) { hashes in
@@ -106,7 +136,10 @@ struct HistoryPaneView: View {
             }
         }
         .overlay {
-            if commits.isEmpty { Text(compareBranch == nil ? "No commits" : "Nothing to show").foregroundStyle(.secondary) }
+            if visible.isEmpty {
+                Text(!query.isEmpty ? "No commits match “\(query)”" : compareBranch == nil ? "No commits" : "Nothing to show")
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -117,7 +150,8 @@ struct HistoryPaneView: View {
         case (let b?, .ahead): "\(b)..HEAD"
         }
         if let compareBranch { counts = await git.aheadBehind(compareBranch) }
-        let loaded = (try? await git.log(ref: ref)) ?? []
+        let all = compareBranch == nil && allBranches
+        let loaded = (try? await git.log(ref: ref, allRefs: all)) ?? []
         commits = loaded
         // Keep the selection across refreshes when possible; otherwise select the newest commit.
         let kept = selection.filter { hash in loaded.contains { $0.hash == hash } }

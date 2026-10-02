@@ -15,6 +15,7 @@ struct RepoWorkspaceView: View {
     @State private var stashes: [StashEntry] = []
     @State private var selectedStash: StashEntry.ID?
     @State private var activationTick = 0
+    @AppStorage("autoFetch") private var autoFetch = true
 
     private var git: GitService { GitService(repo: repo.url) }
     private var revision: Int { store.revisions[repo.id] ?? 0 }
@@ -43,6 +44,14 @@ struct RepoWorkspaceView: View {
             }
         }
         .task(id: "\(revision)|\(activationTick)") { await reload() }
+        .task(id: autoFetch) {
+            // Auto-fetch while this repository is open.
+            while autoFetch && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(600))
+                guard !Task.isCancelled, autoFetch else { break }
+                await store.backgroundFetch(repo.id)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             activationTick += 1
             Task { await store.refreshStatus([repo.id]) }

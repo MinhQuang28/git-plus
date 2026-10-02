@@ -102,6 +102,9 @@ enum IntralineDiff {
         var suffix = 0
         while suffix < a.count - prefix, suffix < b.count - prefix, a[a.count - 1 - suffix] == b[b.count - 1 - suffix] { suffix += 1 }
         guard prefix + suffix > 0 else { return nil }   // completely different line: tint whole line only
+        // Emphasis only helps when the edit is small; a mostly-rewritten line reads better without it.
+        let changedA = a.count - suffix - prefix, changedB = b.count - suffix - prefix
+        guard Double(max(changedA, changedB)) <= 0.6 * Double(max(a.count, b.count)) else { return nil }
         return (prefix..<(a.count - suffix), prefix..<(b.count - suffix))
     }
 }

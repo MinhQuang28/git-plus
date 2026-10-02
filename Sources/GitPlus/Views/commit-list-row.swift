@@ -5,17 +5,26 @@ struct CommitListRow: View {
     let commit: Commit
     /// Shown as a badge in group activity timelines.
     var repoName: String? = nil
+    /// Show branch badges (useful when listing all branches).
+    var showsRefs = false
+
+    private var badges: [String] {
+        commit.refs.filter { $0.hasPrefix("tag: ") || (showsRefs && !$0.hasSuffix("/HEAD") && $0 != "HEAD") }.prefix(3).map { $0 }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Text(commit.subject).font(.system(size: 13, weight: .semibold)).lineLimit(1)
                 Spacer(minLength: 0)
-                ForEach(commit.refs.filter { $0.hasPrefix("tag: ") }.prefix(2), id: \.self) { tag in
-                    Text(tag.dropFirst(5))
+                ForEach(badges, id: \.self) { ref in
+                    let isTag = ref.hasPrefix("tag: ")
+                    Label(isTag ? String(ref.dropFirst(5)) : ref, systemImage: isTag ? "tag" : "arrow.triangle.branch")
+                        .labelStyle(.titleAndIcon)
                         .font(.system(size: 10, weight: .medium))
-                        .padding(.horizontal, 5).padding(.vertical, 1)
-                        .overlay(Capsule().stroke(.secondary.opacity(0.6)))
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(isTag ? Theme.modified.opacity(0.18) : Color.accentColor.opacity(0.16)))
+                        .foregroundStyle(isTag ? Theme.modified : Color.accentColor)
                         .lineLimit(1)
                 }
             }

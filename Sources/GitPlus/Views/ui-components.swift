@@ -118,3 +118,68 @@ struct ToastView: View {
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 }
+
+/// Toggle rendered as a small pill (history view options).
+struct OptionChip: View {
+    let title: String
+    let symbol: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Button { isOn.toggle() } label: {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(isOn ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
+                .overlay(Capsule().stroke(isOn ? Color.accentColor.opacity(0.6) : Theme.separator))
+                .foregroundStyle(isOn ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// "Open in…" split button: click opens the preferred editor, the menu lists every installed app.
+struct OpenInMenu: View {
+    let repo: RepoEntry
+    @AppStorage("preferredEditor") private var preferredEditor = ""
+    @AppStorage("preferredTerminal") private var preferredTerminal = ""
+
+    var body: some View {
+        let editor = ExternalAppLauncher.preferredEditor(preferredEditor)
+        Menu {
+            if !ExternalAppLauncher.editors.isEmpty {
+                Section("Editors") {
+                    ForEach(ExternalAppLauncher.editors) { app in
+                        Button { app.open(repo.url); preferredEditor = app.bundleID } label: { appLabel(app) }
+                    }
+                }
+            }
+            Section("Terminals") {
+                ForEach(ExternalAppLauncher.terminals) { app in
+                    Button { app.open(repo.url); preferredTerminal = app.bundleID } label: { appLabel(app) }
+                }
+            }
+            Divider()
+            Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
+            Button("Copy Path") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(repo.path, forType: .string)
+            }
+        } label: {
+            Label(editor.map { "Open in \($0.name)" } ?? "Open in…", systemImage: "arrow.up.forward.app")
+        } primaryAction: {
+            if let editor { editor.open(repo.url) } else { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
+        }
+        .menuStyle(.button)
+        .fixedSize()
+        .help("Open the repository (⌘⇧E editor · ⌃` terminal · ⌘⇧R Finder)")
+    }
+
+    private func appLabel(_ app: ExternalApp) -> some View {
+        Label {
+            Text(app.name)
+        } icon: {
+            if let icon = app.icon { Image(nsImage: icon) } else { Image(systemName: "app") }
+        }
+    }
+}

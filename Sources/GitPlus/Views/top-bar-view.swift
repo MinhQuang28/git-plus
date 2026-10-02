@@ -18,6 +18,7 @@ struct TopBarView: View {
         HStack(spacing: 0) {
             TopBarButton(icon: repo == nil ? "folder" : "book.closed", caption: repo == nil ? "Current Group" : "Current Repository",
                          title: title, showsChevron: true, width: 280) { showRepoPicker.toggle() }
+                .help("Repositories and groups (⌘T)")
                 .popover(isPresented: $showRepoPicker, arrowEdge: .bottom) {
                     RepositoryPickerView(selection: $selection, isPresented: $showRepoPicker)
                 }
@@ -25,6 +26,7 @@ struct TopBarView: View {
                 let status = store.statuses[repo.id]
                 TopBarButton(icon: "arrow.triangle.branch", caption: "Current Branch", title: status?.branch ?? "–",
                              showsChevron: true, width: 260) { showBranchPicker.toggle() }
+                    .help("Branches (⌘B)")
                     .popover(isPresented: $showBranchPicker, arrowEdge: .bottom) {
                         BranchPickerView(repo: repo, isPresented: $showBranchPicker)
                     }
@@ -47,8 +49,11 @@ struct TopBarView: View {
                     .disabled(ids.isEmpty || busy)
             }
             Spacer(minLength: 0)
+            if let repo { OpenInMenu(repo: repo).padding(.trailing, 12) }
         }
         .frame(height: 52)
+        .onReceive(NotificationCenter.default.publisher(for: .showRepositoryPicker)) { _ in showRepoPicker = true }
+        .onReceive(NotificationCenter.default.publisher(for: .showBranchPicker)) { _ in if repo != nil { showBranchPicker = true } }
         .background(Theme.barBackground)
         .overlay(alignment: .bottom) { Rectangle().fill(Theme.barDivider).frame(height: 1) }
     }
@@ -106,6 +111,7 @@ struct TopBarButton: View {
         .foregroundStyle(Theme.barText)
         .opacity(isEnabled ? 1 : 0.5)
         .onHover { hovering = $0 }
+        .focusEffectDisabled()
         .animation(.easeOut(duration: 0.12), value: hovering)
         .overlay(alignment: .trailing) { Rectangle().fill(Theme.barDivider).frame(width: 1) }
     }

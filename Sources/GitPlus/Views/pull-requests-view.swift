@@ -75,30 +75,3 @@ struct PullRequestsView: View {
         }
     }
 }
-
-/// Settings → shows `gh auth status` / `glab auth status`.
-struct ProviderSettingsView: View {
-    @State private var results: [String: (ok: Bool, message: String)] = [:]
-
-    var body: some View {
-        Form {
-            ForEach(["gh", "glab"], id: \.self) { cli in
-                Section(cli == "gh" ? "GitHub (gh)" : "GitLab (glab)") {
-                    if let r = results[cli] {
-                        Label(r.ok ? "Authenticated" : "Not ready", systemImage: r.ok ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(r.ok ? .green : .red)
-                        Text(r.message).font(.caption.monospaced()).textSelection(.enabled)
-                    } else {
-                        ProgressView().controlSize(.small)
-                    }
-                    Text("Run `\(cli) auth login` in Terminal to sign in.").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .frame(width: 520, height: 460)
-        .task {
-            for cli in ["gh", "glab"] { results[cli] = await ProviderCLIService.authStatus(cli) }
-        }
-    }
-}

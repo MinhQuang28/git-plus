@@ -16,7 +16,7 @@ struct GitPlusApp: App {
         .commands { AppCommands(store: store) }
 
         Settings {
-            ProviderSettingsView()
+            SettingsView()
         }
     }
 }
@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor private var pending: [URL] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSWindow.allowsAutomaticWindowTabbing = false   // frees ⌘T for the repository list
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         // Also accept folder paths passed as plain arguments: `GitPlus ~/code/foo`.
@@ -67,26 +68,5 @@ enum FolderPicker {
         panel.message = message
         panel.prompt = "Add"
         return panel.runModal() == .OK ? panel.urls : []
-    }
-}
-
-struct AppCommands: Commands {
-    let store: WorkspaceStore
-
-    var body: some Commands {
-        CommandGroup(after: .newItem) {
-            Button("Add Repositories…") {
-                let urls = FolderPicker.choose()
-                Task { await store.add(folders: urls, to: nil) }
-            }
-            .keyboardShortcut("o")
-            Button("Auto-Group by Remote") { Task { await store.autoGroupByRemote() } }
-        }
-        CommandMenu("Repository") {
-            Button("Refresh All Status") { Task { await store.refreshStatus() } }
-                .keyboardShortcut("r")
-            Button("Fetch All") { Task { await store.fetch(store.workspace.repos.map(\.id)) } }
-                .keyboardShortcut("f", modifiers: [.command, .shift])
-        }
     }
 }
