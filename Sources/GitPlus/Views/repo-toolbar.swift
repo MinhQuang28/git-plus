@@ -22,7 +22,7 @@ struct RepoToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .navigation) {
-            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–")
+            BranchToolbarButton(repo: repo, branch: status?.branch ?? "–", lastFetched: status?.lastFetched)
         }
         ToolbarItem(placement: .principal) {
             Picker("View", selection: $tab) {
@@ -56,11 +56,22 @@ struct RepoToolbar: ToolbarContent {
 struct BranchToolbarButton: View {
     let repo: RepoEntry
     let branch: String
+    let lastFetched: Date?
     @State private var isPresented = false
+
+    private var fetchedText: String { lastFetched.map { "Fetched \(RelativeTime.string($0))" } ?? "Never fetched" }
 
     var body: some View {
         Button { isPresented.toggle() } label: {
-            Label(branch, systemImage: "arrow.triangle.branch").labelStyle(.titleAndIcon)
+            // Branch on top, last fetch time below.
+            HStack(spacing: 7) {
+                Image(systemName: "arrow.triangle.branch").frame(width: 16)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(branch).font(.system(size: 11.5, weight: .semibold)).lineLimit(1)
+                    Text(fetchedText).font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 4)
         }
         .help("Switch, create, merge or delete branches (⌘B)")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
@@ -85,26 +96,14 @@ struct SyncToolbarButton: View {
                 else { await store.fetch([repo.id]) }
             }
         } label: {
-            // Two lines like GitHub Desktop: action on top, last fetch time below.
-            HStack(spacing: 7) {
-                Group {
-                    if busy { ProgressView().controlSize(.small) } else { Image(systemName: icon) }
-                }
-                .frame(width: 18)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(busy ? "Syncing…" : title).font(.system(size: 11.5, weight: .semibold))
-                    Text(caption).font(.system(size: 9.5)).foregroundStyle(.secondary)
-                }
+            if busy {
+                Label { Text("Syncing…") } icon: { ProgressView().controlSize(.small) }.labelStyle(.titleAndIcon)
+            } else {
+                Label(title, systemImage: icon).labelStyle(.titleAndIcon)
             }
-            .padding(.horizontal, 4)
         }
         .disabled(busy)
         .help("Fetch, pull or push depending on the branch state (⌘⇧F / ⌘⇧L / ⌘⇧P)")
-    }
-
-    private var caption: String {
-        guard let date = status?.lastFetched else { return "Never fetched" }
-        return "Fetched \(RelativeTime.string(date))"
     }
 
     private var remoteName: String { status?.upstream?.split(separator: "/").first.map(String.init) ?? "origin" }
@@ -134,7 +133,7 @@ struct ReviewsToolbarButton: View {
         Button { isPresented.toggle() } label: { Label(provider.reviewNoun, systemImage: "arrow.triangle.pull") }
             .help("\(provider.reviewNoun) via \(provider.cliName ?? "")")
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                PullRequestsView(repoURL: repoURL, provider: provider).frame(width: 860, height: 460)
+                PullRequestsView(repoURL: repoURL, provider: provider)
             }
     }
 }
