@@ -27,8 +27,8 @@ final class AdvancedGitIntegrationTests: XCTestCase {
     private func out(_ cwd: URL, _ args: String...) async throws -> String {
         try await ProcessRunner.run("git", args, in: cwd).trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    private func configure(_ repo: URL, init: Bool = false) async throws {
-        if init { try await run(repo, "init", "-q", "-b", "main") }
+    private func configure(_ repo: URL, init shouldInit: Bool = false) async throws {
+        if shouldInit { try await run(repo, "init", "-q", "-b", "main") }
         try await run(repo, "config", "user.name", "T")
         try await run(repo, "config", "user.email", "t@t")
         try await run(repo, "config", "commit.gpgsign", "false")

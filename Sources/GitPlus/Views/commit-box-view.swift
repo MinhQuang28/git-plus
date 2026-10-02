@@ -178,7 +178,9 @@ struct CommitBoxView: View {
         let stageFirst = stagesAll, isAmend = amend
         let needsUpstream = status?.upstream == nil
         let id = repo.id, branch = branch
-        let undo: (@Sendable (GitService) async throws -> Void)? = isAmend ? nil : { git in try await git.undoLastCommit() }
+        // Explicit `if` instead of a ternary: the closure-in-ternary form crashes the type checker.
+        var undo: (@Sendable (GitService) async throws -> Void)? = nil
+        if !isAmend { undo = { git in try await git.undoLastCommit() } }
         Task {
             let ok = await store.perform(id, "commit", success: push ? nil : isAmend ? "Amended last commit" : "Committed to \(branch)",
                                          undo: undo) {
