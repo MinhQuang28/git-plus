@@ -70,19 +70,31 @@ enum ProcessRunner {
         return found
     }
 
+    /// Version managers (nvm, pyenv, …) are usually set up in `.zshrc`, which only interactive
+    /// shells read — so try `-ilc` first (needed for hooks that call `node` etc.), then plain `-lc`.
     private static func loginShellPath() -> [String]? {
+        shellPath(flags: "-ilc") ?? shellPath(flags: "-lc")
+    }
+
+    private static func shellPath(flags: String) -> [String]? {
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let marker = "__GITPLUS_PATH__"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: shell)
-        process.arguments = ["-l", "-c", "printf %s \"$PATH\""]
+        // Markers isolate PATH from anything rc files print to stdout.
+        process.arguments = [flags, "printf '\(marker)%s\(marker)' \"$PATH\""]
         let out = Pipe()
         process.standardOutput = out
         process.standardError = FileHandle.nullDevice
         process.standardInput = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
+        // A misbehaving rc file must not hang app startup.
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5) { if process.isRunning { process.terminate() } }
         let data = out.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else { return nil }
-        return String(decoding: data, as: UTF8.self).split(separator: ":").map(String.init)
+        let parts = String(decoding: data, as: UTF8.self).components(separatedBy: marker)
+        guard parts.count >= 3, !parts[1].isEmpty else { return nil }
+        return parts[1].split(separator: ":").map(String.init)
     }
 }
