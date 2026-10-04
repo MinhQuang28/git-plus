@@ -22,7 +22,7 @@ fi
 APP_NAME="Git Plus"
 EXECUTABLE="GitPlus"
 BUNDLE_ID="co.egohub.gitplus"
-VERSION="0.4.0"
+VERSION="0.5.0"
 OUT="build/${APP_NAME}.app"
 
 echo "==> swift build -c release"
