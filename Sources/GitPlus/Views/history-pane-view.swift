@@ -29,7 +29,7 @@ struct HistoryPaneView: View {
     @State private var request: CommitRequest?
     @FocusState private var compareFocused: Bool
     @AppStorage("historyAllBranches") private var allBranches = false
-    @AppStorage("historyGraph") private var showGraph = true
+    @AppStorage("historyGraph") private var showGraph = false
     @State private var query = ""
     @State private var isSearching = false
 
@@ -74,7 +74,7 @@ struct HistoryPaneView: View {
             if let compareBranch {
                 Text(compareBranch).lineLimit(1)
                 Spacer()
-                Button { self.compareBranch = nil; compareText = "" } label: { Image(systemName: "xmark.circle.fill") }
+                Button { self.compareBranch = nil; compareText = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
             } else {
                 TextField("Select Branch to Compare…", text: $compareText)
@@ -124,12 +124,12 @@ struct HistoryPaneView: View {
                 if isSearching {
                     ProgressView().controlSize(.mini)
                 } else {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).font(.caption)
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).appFont(.caption)
                 }
-                TextField("Search  ·  author:name  path:dir/", text: $query).textFieldStyle(.plain).font(.callout)
+                TextField("Search  ·  author:name  path:dir/", text: $query).textFieldStyle(.plain).appFont(.callout)
                     .help("Searches commit messages and authors (or a SHA). Add author:… or path:… to narrow it down.")
                 if !query.isEmpty {
-                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    Button { query = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }.buttonStyle(.plain).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 7).padding(.vertical, 4)

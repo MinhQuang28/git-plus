@@ -66,8 +66,8 @@ struct ConflictsSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
-            Text(title).font(.title3.weight(.semibold))
-            Text(subtitle).font(.callout).foregroundStyle(.secondary)
+            Text(title).appFont(.title3, weight: .semibold)
+            Text(subtitle).appFont(.callout).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Spacing.l)
@@ -99,7 +99,7 @@ struct ConflictsSheet: View {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.added)
                     pathLabel(path)
                     Spacer()
-                    Text("Resolved").font(.callout).foregroundStyle(Theme.added)
+                    Text("Resolved").appFont(.callout).foregroundStyle(Theme.added)
                 }
                 .padding(.vertical, Spacing.xs)
             }
@@ -118,7 +118,7 @@ struct ConflictsSheet: View {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.conflict)
             VStack(alignment: .leading, spacing: Spacing.xxs) {
                 pathLabel(file.path)
-                Text(rowDetail(file, markers: count)).font(.callout).foregroundStyle(count > 0 || file.deletedSide != nil ? Theme.conflict : Theme.added)
+                Text(rowDetail(file, markers: count)).appFont(.callout).foregroundStyle(count > 0 || file.deletedSide != nil ? Theme.conflict : Theme.added)
             }
             Spacer()
             if file.deletedSide == nil && count == 0 {
@@ -275,6 +275,7 @@ struct ConflictFileView: View {
                     }
                     .padding(Spacing.m)
                 }
+                .neutralScrollIndicator()
             }
         }
         .background(Theme.contextLine)
@@ -284,10 +285,10 @@ struct ConflictFileView: View {
     private var toolbar: some View {
         HStack(spacing: Spacing.s) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.conflict)
-            Text(file.path).font(.body.weight(.medium)).lineLimit(1).truncationMode(.head)
+            Text(file.path).appFont(.body, weight: .medium).lineLimit(1).truncationMode(.head)
             Spacer()
             if !blocks.isEmpty {
-                Text("\(choices.count) of \(blocks.count) resolved").font(.callout).foregroundStyle(.secondary).monospacedDigit()
+                Text("\(choices.count) of \(blocks.count) resolved").appFont(.callout).foregroundStyle(.secondary).monospacedDigit()
                 Menu("All Blocks") {
                     ForEach(ConflictResolver.Choice.allCases, id: \.self) { choice in
                         Button(label(choice)) { for b in blocks { choices[b.id] = choice } }
@@ -303,7 +304,7 @@ struct ConflictFileView: View {
             }
         }
         .padding(.horizontal, Spacing.m)
-        .frame(height: 44)
+        .frame(minHeight: 44)
         .background(Theme.headerBackground)
     }
 
@@ -330,7 +331,7 @@ struct ConflictFileView: View {
         let choice = choices[block.id]
         return VStack(alignment: .leading, spacing: Spacing.s) {
             HStack {
-                Text("Conflict \(block.id + 1) of \(blocks.count)").font(.headline)
+                Text("Conflict \(block.id + 1) of \(blocks.count)").appFont(.headline)
                 Spacer()
                 if let choice { StatusPill(text: label(choice), symbol: "checkmark", tint: Theme.added) }
             }
@@ -364,8 +365,8 @@ struct ConflictFileView: View {
         VStack(alignment: .leading, spacing: Spacing.xs) {
             HStack(spacing: Spacing.xs) {
                 Circle().fill(tint).frame(width: 8, height: 8)
-                Text(title).font(.callout.weight(.semibold)).lineLimit(1).truncationMode(.middle)
-                Text(caption).font(.caption).foregroundStyle(.secondary)
+                Text(title).appFont(.callout, weight: .semibold).lineLimit(1).truncationMode(.middle)
+                Text(caption).appFont(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if isChosen { Image(systemName: "checkmark.circle.fill").foregroundStyle(Theme.added) }
             }
@@ -473,7 +474,7 @@ struct MergeSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Spacing.s) {
-                Text("Merge into \(current)").font(.title3.weight(.semibold))
+                Text("Merge into \(current)").appFont(.title3, weight: .semibold)
                 TextField("Filter branches", text: $filter).textFieldStyle(.roundedBorder)
             }
             .padding(Spacing.l)
@@ -527,7 +528,7 @@ struct MergeSheet: View {
                       systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(Theme.conflict)
                 Text(preview.prefix(4).joined(separator: ", ") + (preview.count > 4 ? " …" : ""))
-                    .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(2)
+                    .appFont(.caption, design: .monospaced).foregroundStyle(.secondary).lineLimit(2)
             }
         } else if preview != nil {
             Label("No conflicts — \(incoming) commit\(incoming == 1 ? "" : "s") will be merged.", systemImage: "checkmark.circle.fill")

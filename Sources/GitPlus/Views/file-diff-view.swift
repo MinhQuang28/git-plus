@@ -71,6 +71,8 @@ struct FileDiffView: View {
     /// Computed once per load (not per render): hunk line ids and the change map.
     @State private var hunkIDs: [Int] = []
     @State private var marks: [ChangeMark] = []
+    /// The marker strip maps the whole diff onto the viewport height — only meaningful once it scrolls.
+    @State private var isScrollable = false
     @State private var currentHunk = 0
     @State private var scrollTarget: Int?
 
@@ -93,7 +95,25 @@ struct FileDiffView: View {
                                  apply: { action in perform(action, ids: selected) }, clear: { selected = [] })
             }
         }
+        .background { currentHunkShortcuts }
         .task(id: "\(fullContext)|\(syntaxHighlight)|\(ignoreWhitespace)|\(reloadKey)") { await load() }
+    }
+
+    /// ⌥⌘↩ stages (or unstages) the current change, ⌥⌘⌫ discards it — ⌥⌘↑/↓ pick which one.
+    @ViewBuilder private var currentHunkShortcuts: some View {
+        if canStage, hunkIDs.indices.contains(currentHunk) {
+            let ids = { PatchBuilder.changeLines(inHunk: hunkIDs[currentHunk], raw: raw) }
+            Group {
+                Button("") { perform(file.area == .staged ? .unstage : .stage, ids: ids()) }
+                    .keyboardShortcut(.return, modifiers: [.command, .option])
+                if file.area == .unstaged {
+                    Button("") { perform(.discard, ids: ids()) }
+                        .keyboardShortcut(.delete, modifiers: [.command, .option])
+                }
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -135,9 +155,15 @@ struct FileDiffView: View {
                     .textSelection(.enabled)
                     .padding(.bottom, selected.isEmpty ? 0 : 60)
                 }
-                .overlay(alignment: .trailing) {
-                    ChangeMarkerStrip(marks: marks) { id in proxy.scrollTo(id, anchor: .top) }
+                .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, scrolls in
+                    isScrollable = scrolls
                 }
+                .overlay(alignment: .trailing) {
+                    if isScrollable {
+                        ChangeMarkerStrip(marks: marks) { id in proxy.scrollTo(id, anchor: .top) }
+                    }
+                }
+                .neutralScrollIndicator()   // gray thumb drawn over the marker strip
                 .onChange(of: scrollTarget) { _, id in
                     if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
                 }
@@ -160,9 +186,12 @@ struct FileDiffView: View {
             let ids = { PatchBuilder.changeLines(inHunk: hunkID, raw: raw) }
             if file.area == .unstaged {
                 HunkActionButton(title: "Discard", symbol: "arrow.uturn.backward", destructive: true) { perform(.discard, ids: ids()) }
+                    .help("Discard this change (⌥⌘⌫ for the current one)")
                 HunkActionButton(title: "Stage Hunk", symbol: "plus") { perform(.stage, ids: ids()) }
+                    .help("Stage this change (⌥⌘↩ for the current one)")
             } else {
                 HunkActionButton(title: "Unstage Hunk", symbol: "minus") { perform(.unstage, ids: ids()) }
+                    .help("Unstage this change (⌥⌘↩ for the current one)")
             }
         }
     }
@@ -182,7 +211,7 @@ struct FileDiffView: View {
 
     private func perform(_ action: LineAction, ids: Set<Int>) {
         guard let repoID else { return }
-        DiffStagingActions.run(action, ids: ids, raw: raw, store: store, repoID: repoID)
+        DiffStagingActions.run(action, ids: ids, raw: raw, path: file.path, store: store, repoID: repoID)
         selected = []
     }
 
@@ -268,14 +297,15 @@ struct ChangeMarkerStrip: View {
         GeometryReader { geo in
             Canvas { context, size in
                 for mark in marks {
-                    let rect = CGRect(x: 2, y: mark.start * size.height, width: size.width - 4,
+                    // Thin, muted marks on the left edge: the gray scroll thumb sits beside/over them.
+                    let rect = CGRect(x: 1, y: mark.start * size.height, width: 3,
                                       height: max((mark.end - mark.start) * size.height, 1.5))
                     let color = switch mark.kind {
                     case .added: Theme.added
                     case .removed: Theme.deleted
                     case .mixed: Theme.modified
                     }
-                    context.fill(Path(rect), with: .color(color))
+                    context.fill(Path(rect), with: .color(color.opacity(0.7)))
                 }
             }
             .contentShape(Rectangle())
@@ -285,7 +315,7 @@ struct ChangeMarkerStrip: View {
                 if let target = marks.first(where: { $0.end >= fraction }) ?? marks.last { jump(target.lineID) }
             }
         }
-        .frame(width: 10)
+        .frame(width: 13)
         .background(Theme.gutter)
         .help("Changes in this file — click to jump")
         .accessibilityHidden(true)
@@ -314,8 +344,8 @@ struct ImageDiffView: View {
         VStack(spacing: Spacing.s) {
             HStack(spacing: Spacing.xs) {
                 Circle().fill(tint).frame(width: 8, height: 8)
-                Text(title).font(.headline)
-                if let image { Text("\(Int(image.size.width))×\(Int(image.size.height))").font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
+                Text(title).appFont(.headline)
+                if let image { Text("\(Int(image.size.width))×\(Int(image.size.height))").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary) }
             }
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.m).fill(Theme.gutter)

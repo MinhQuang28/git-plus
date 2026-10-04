@@ -28,9 +28,9 @@ struct PullRequestsView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(provider.reviewNoun).font(.system(size: 15, weight: .semibold))
+                Text(provider.reviewNoun).appFont(size: 15, weight: .semibold)
                 if !items.isEmpty {
-                    Text("\(items.count)").font(.system(size: 11, weight: .bold).monospacedDigit())
+                    Text("\(items.count)").appFont(size: 11, weight: .bold, monospacedDigit: true)
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .background(Capsule().fill(.secondary.opacity(0.18)))
                 }
@@ -66,7 +66,7 @@ struct PullRequestsView: View {
             ContentUnavailableView {
                 Label("Couldn’t load \(provider.reviewNoun.lowercased())", systemImage: "exclamationmark.triangle")
             } description: {
-                Text(error).font(.callout)
+                Text(error).appFont(.callout)
             }
         } else if isLoading && items.isEmpty {
             ProgressView()
@@ -91,15 +91,15 @@ struct PullRequestsView: View {
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: icon(item))
-                    .font(.system(size: 15))
+                    .appFont(size: 15)
                     .foregroundStyle(color(item))
                     .frame(width: 20)
                     .padding(.top, 1)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
-                        Text(item.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+                        Text(item.title).appFont(size: 13, weight: .semibold).lineLimit(2)
                         if item.isDraft {
-                            Text("Draft").font(.system(size: 10, weight: .medium))
+                            Text("Draft").appFont(size: 11, weight: .medium)
                                 .padding(.horizontal, 5).padding(.vertical, 1)
                                 .overlay(Capsule().stroke(.secondary.opacity(0.5)))
                                 .foregroundStyle(.secondary)
@@ -116,12 +116,12 @@ struct PullRequestsView: View {
                             Text(RelativeTime.string(date))
                         }
                     }
-                    .font(.system(size: 11))
+                    .appFont(size: 11)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.tertiary).padding(.top, 2)
+                Image(systemName: "arrow.up.right").appFont(.caption).foregroundStyle(.tertiary).padding(.top, 2)
             }
             .padding(.horizontal, 14).padding(.vertical, 9)
             .contentShape(Rectangle())

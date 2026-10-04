@@ -76,8 +76,8 @@ struct WelcomeView: View {
     var body: some View {
         VStack(spacing: Spacing.xl) {
             VStack(spacing: Spacing.s) {
-                Image(systemName: "square.stack.3d.up.fill").font(.system(size: 44)).foregroundStyle(.tint).symbolRenderingMode(.hierarchical)
-                Text(store.workspace.repos.isEmpty ? "Welcome to Git Plus" : "Pick a Repository").font(.largeTitle.weight(.semibold))
+                Image(systemName: "square.stack.3d.up.fill").appFont(size: 44).foregroundStyle(.tint).symbolRenderingMode(.hierarchical)
+                Text(store.workspace.repos.isEmpty ? "Welcome to Git Plus" : "Pick a Repository").appFont(.largeTitle, weight: .semibold)
                 Text(store.workspace.repos.isEmpty ? "Add the repositories you work on — or a whole folder of them."
                      : "Choose a repository or group from the list on the left, or press ⌘K.")
                     .foregroundStyle(.secondary)
@@ -102,12 +102,12 @@ struct WelcomeView: View {
                         } else {
                             ProgressView().controlSize(.mini)
                         }
-                        Text(tool).font(.mono)
+                        Text(tool).appFont(.callout, design: .monospaced)
                     }
                     .help(help(tool))
                 }
             }
-            .font(.callout)
+            .appFont(.callout)
         }
         .padding(Spacing.xl)
         .task {
@@ -126,9 +126,9 @@ struct WelcomeView: View {
     private func card(_ title: String, detail: String, symbol: String, keys: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: Spacing.s) {
-                Image(systemName: symbol).font(.title2).foregroundStyle(.tint)
-                Text(title).font(.headline)
-                Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Image(systemName: symbol).appFont(.title2).foregroundStyle(.tint)
+                Text(title).appFont(.headline)
+                Text(detail).appFont(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 KeyboardHint(keys: keys)
             }

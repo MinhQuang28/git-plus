@@ -17,7 +17,7 @@ struct CommitSettingsView: View {
                 TextField("Summary", text: $summary, prompt: Text("e.g. feat: "))
                 LabeledContent("Description") {
                     TextEditor(text: $details)
-                        .font(.callout)
+                        .appFont(.callout)
                         .frame(minHeight: 110)
                         .scrollContentBackground(.hidden)
                         .padding(4)
@@ -27,7 +27,7 @@ struct CommitSettingsView: View {
                 Text("Default commit message")
             } footer: {
                 Text("Prefilled into the commit box when it opens and after each commit. Leave empty for a blank box.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .appFont(.caption).foregroundStyle(.secondary)
             }
             if !summary.isEmpty || !details.isEmpty {
                 Button("Clear Default Message", role: .destructive) { summary = ""; details = "" }

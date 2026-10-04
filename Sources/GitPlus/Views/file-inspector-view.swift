@@ -13,7 +13,7 @@ struct FileInspectorView: View {
         VStack(spacing: 0) {
             HStack(spacing: Spacing.s) {
                 Image(systemName: mode == .history ? "clock.arrow.circlepath" : "person.text.rectangle").foregroundStyle(.secondary)
-                Text(path).font(.body.weight(.medium)).lineLimit(1).truncationMode(.head)
+                Text(path).appFont(.body, weight: .medium).lineLimit(1).truncationMode(.head)
                 Spacer()
                 Picker("", selection: $mode) {
                     Text("History").tag(FileInspection.Mode.history)
@@ -25,7 +25,7 @@ struct FileInspectorView: View {
                 Button("Done", action: dismiss).keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, Spacing.m)
-            .frame(height: 48)
+            .frame(minHeight: 48)
             .background(Theme.headerBackground)
             Divider()
             switch mode {
@@ -56,9 +56,9 @@ struct FileHistoryPane: View {
                     VStack(alignment: .leading, spacing: Spacing.xxs) {
                         CommitListRow(commit: rev.commit)
                         if let old = rev.file.oldPath {
-                            Label("renamed from \(old)", systemImage: "arrow.right.square").font(.caption).foregroundStyle(Theme.renamed)
+                            Label("renamed from \(old)", systemImage: "arrow.right.square").appFont(.caption).foregroundStyle(Theme.renamed)
                         } else if rev.file.path != path {
-                            Text(rev.file.path).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+                            Text(rev.file.path).appFont(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
                         }
                     }
                     .listRowSeparator(.visible)
@@ -118,6 +118,7 @@ struct BlamePane: View {
                     }
                     .textSelection(.enabled)
                 }
+                .neutralScrollIndicator()
             }
         }
         .background(Theme.contextLine)
@@ -153,7 +154,7 @@ struct BlamePane: View {
                     }
                 }
             }
-            .font(.caption)
+            .appFont(.caption)
             .frame(width: 260, alignment: .leading)
             .padding(.horizontal, Spacing.s)
             .padding(.vertical, 1.5)

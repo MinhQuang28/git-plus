@@ -43,7 +43,7 @@ struct CommitDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(commit?.subject ?? target.title).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+                Text(commit?.subject ?? target.title).appFont(size: 16, weight: .semibold).lineLimit(1)
                 if !body_.isEmpty {
                     Button { showFullMessage.toggle() } label: {
                         Image(systemName: showFullMessage ? "chevron.up" : "chevron.down")
@@ -62,8 +62,8 @@ struct CommitDetailView: View {
                     .help(commit.email)
                     HStack(spacing: 4) {
                         Image(systemName: "smallcircle.filled.circle")
-                        Text(commit.shortHash).font(.system(size: 12, design: .monospaced))
-                        Button { copy(commit.hash) } label: { Image(systemName: "doc.on.doc") }
+                        Text(commit.shortHash).appFont(size: 12, design: .monospaced)
+                        Button { copy(commit.hash) } label: { Label("Copy SHA", systemImage: "doc.on.doc").labelStyle(.iconOnly) }
                             .buttonStyle(.plain).help("Copy SHA")
                     }
                     Text(commit.date.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary)
@@ -75,14 +75,14 @@ struct CommitDetailView: View {
                 Text("+\(add)").foregroundStyle(Theme.added).monospacedDigit()
                 Text("−\(del)").foregroundStyle(Theme.deleted).monospacedDigit()
                 if let url = remote?.commitURL(target.head), commit != nil {
-                    Button { NSWorkspace.shared.open(url) } label: { Image(systemName: "safari") }
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Open on web", systemImage: "safari").labelStyle(.iconOnly) }
                         .buttonStyle(.plain).help("View on \(remote?.host ?? "web")")
                 }
             }
-            .font(.system(size: 12))
+            .appFont(size: 12)
             if showFullMessage {
                 ScrollView {
-                    Text(body_).font(.system(size: 12)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(body_).appFont(size: 12).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 140)
             }

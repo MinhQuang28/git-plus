@@ -12,7 +12,7 @@ struct RepoRowView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(repo.name).lineLimit(1)
                 if let status {
-                    Text(status.branch).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(status.branch).appFont(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
@@ -37,10 +37,21 @@ struct SyncBadge: View {
             if status.behind > 0 { Text("↓\(status.behind)").foregroundStyle(Theme.behind) }
             if status.ahead > 0 { Text("↑\(status.ahead)").foregroundStyle(Theme.ahead) }
             if status.changedFiles > 0 {
-                Circle().fill(.yellow).frame(width: 7, height: 7).help("\(status.changedFiles) uncommitted change(s)")
+                Circle().fill(Theme.modified).frame(width: 7, height: 7).help("\(status.changedFiles) uncommitted change(s)")
             }
         }
-        .font(.caption.monospacedDigit())
+        .appFont(.caption, monospacedDigit: true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spokenSummary)
+    }
+
+    private var spokenSummary: String {
+        var parts: [String] = []
+        if let op = status.operation { parts.append("\(op.title) in progress") } else if status.conflicts > 0 { parts.append("conflicts") }
+        if status.ahead > 0 { parts.append("\(status.ahead) ahead") }
+        if status.behind > 0 { parts.append("\(status.behind) behind") }
+        if status.changedFiles > 0 { parts.append("\(status.changedFiles) changed") }
+        return parts.joined(separator: ", ")
     }
 }
 

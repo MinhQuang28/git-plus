@@ -17,14 +17,6 @@ enum Radius {
     static let l: CGFloat = 14
 }
 
-/// Semantic text styles (follow the system text size instead of fixed point sizes).
-extension Font {
-    static let rowTitle = Font.body.weight(.semibold)
-    static let rowDetail = Font.callout
-    static let sectionTitle = Font.caption.weight(.semibold)
-    static let mono = Font.system(.callout, design: .monospaced)
-}
-
 /// GitHub Desktop–style palette; every color adapts to light/dark appearance.
 enum Theme {
     static func dynamic(light: NSColor, dark: NSColor) -> Color {

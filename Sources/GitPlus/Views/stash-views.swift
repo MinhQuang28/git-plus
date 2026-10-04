@@ -8,8 +8,8 @@ struct StashListView: View {
     var body: some View {
         List(stashes, selection: $selection) { entry in
             VStack(alignment: .leading, spacing: 3) {
-                Text(entry.message).font(.system(size: 13, weight: .semibold)).lineLimit(2)
-                Text("\(entry.ref) • \(RelativeTime.string(entry.date))").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(entry.message).appFont(size: 13, weight: .semibold).lineLimit(2)
+                Text("\(entry.ref) • \(RelativeTime.string(entry.date))").appFont(size: 11).foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
             .listRowSeparator(.visible)
@@ -35,7 +35,7 @@ struct StashDetailView: View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 Image(systemName: "tray.full").foregroundStyle(.secondary)
-                Text(entry.ref).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary)
+                Text(entry.ref).appFont(size: 12, design: .monospaced).foregroundStyle(.secondary)
                 Spacer()
                 Button("Apply") { run("apply stash", "Stash applied") { try await $0.applyStash(entry, pop: false) } }
                     .help("Apply and keep the stash")
@@ -75,11 +75,11 @@ struct OperationBannerView: View {
             Image(systemName: conflicts > 0 ? "exclamationmark.triangle.fill" : "arrow.triangle.merge")
                 .foregroundStyle(Theme.bannerBorder)
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(operation.title) in progress").font(.system(size: 13, weight: .semibold))
+                Text("\(operation.title) in progress").appFont(size: 13, weight: .semibold)
                 Text(conflicts > 0
                      ? "\(conflicts) conflicted file\(conflicts == 1 ? "" : "s"). Pick which branch's version to keep for each file, then continue."
                      : "All conflicts resolved. Continue to finish the \(operation.title.lowercased()).")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                    .appFont(size: 12).foregroundStyle(.secondary)
             }
             Spacer()
             if operation == .rebase {

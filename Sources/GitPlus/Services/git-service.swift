@@ -68,15 +68,6 @@ struct GitService: Sendable {
         return list
     }
 
-    /// Switches to a local branch, or creates a tracking branch for `remote/name`.
-    func switchBranch(_ name: String, isRemote: Bool = false) async throws {
-        if isRemote {
-            _ = try await git(["switch", "--track", name])
-        } else {
-            _ = try await git(["switch", name])
-        }
-    }
-
     func createBranch(_ name: String) async throws { _ = try await git(["switch", "-c", name]) }
 
     // MARK: History

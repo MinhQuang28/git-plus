@@ -37,7 +37,7 @@ struct CommandPaletteView: View {
                 Image(systemName: "command").foregroundStyle(.secondary)
                 TextField("Search commands, repositories, branches…", text: $query)
                     .textFieldStyle(.plain)
-                    .font(.title3)
+                    .appFont(.title3)
                     .focused($focused)
                     .onSubmit { activate(highlighted) }
                     .onKeyPress(.downArrow) { highlighted = min(highlighted + 1, max(results.count - 1, 0)); return .handled }
@@ -50,9 +50,10 @@ struct CommandPaletteView: View {
                     LazyVStack(spacing: 0) {
                         let items = results
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            row(item, isHighlighted: index == highlighted)
+                            Button { activate(index) } label: { row(item, isHighlighted: index == highlighted) }
+                                .buttonStyle(.plain)
                                 .id(index)
-                                .onTapGesture { activate(index) }
+                                .accessibilityAddTraits(index == highlighted ? .isSelected : [])
                         }
                         if items.isEmpty {
                             Text("No matches").foregroundStyle(.secondary).padding(Spacing.xl)
@@ -67,6 +68,7 @@ struct CommandPaletteView: View {
         .frame(width: 600)
         .glassEffect(.regular, in: .rect(cornerRadius: Radius.l))
         .shadow(color: .black.opacity(0.25), radius: 30, y: 10)
+        .accessibilityAddTraits(.isModal)
         .onAppear { focused = true }
         .onChange(of: query) { highlighted = 0 }
         .onExitCommand(perform: dismiss)
@@ -80,7 +82,7 @@ struct CommandPaletteView: View {
             Image(systemName: item.symbol).frame(width: 20).foregroundStyle(isHighlighted ? Color.accentColor : .secondary)
             VStack(alignment: .leading, spacing: 0) {
                 Text(item.title).lineLimit(1)
-                if !item.subtitle.isEmpty { Text(item.subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if !item.subtitle.isEmpty { Text(item.subtitle).appFont(.caption).foregroundStyle(.secondary).lineLimit(1) }
             }
             Spacer()
             if let shortcut = item.shortcut { KeyboardHint(keys: shortcut) }
@@ -117,7 +119,7 @@ struct CommandPaletteView: View {
         guard let id = repoID else { return [] }
         return branches.local.filter { $0 != branches.current }.map { name in
             Item(id: "branch:\(name)", title: name, subtitle: "Switch to branch", symbol: "arrow.triangle.branch") {
-                Task { await store.perform(id, "switch branch", success: "Switched to \(name)") { try await $0.switchBranch(name) } }
+                store.requestSwitch(id, to: name)
             }
         }
     }
@@ -146,7 +148,17 @@ struct CommandPaletteView: View {
             },
             Item(id: "cmd:merge", title: "Merge into Current Branch…", symbol: "arrow.triangle.merge", shortcut: "⇧⌘M") { RepoActions.post(.showMerge) },
             Item(id: "cmd:conflicts", title: "Resolve Conflicts…", symbol: "wand.and.stars") { RepoActions.post(.showConflicts) },
-            Item(id: "cmd:undo", title: "Undo Last Commit", symbol: "arrow.uturn.backward") { RepoActions.undoLastCommit(store, id) },
+            Item(id: "cmd:undo", title: "Undo Last Commit", symbol: "arrow.uturn.backward", shortcut: "⌥⌘Z") { RepoActions.undoLastCommit(store, id) },
+            Item(id: "cmd:commitmsg", title: "Go to Commit Message", symbol: "text.cursor", shortcut: "⌘L") {
+                RepoActions.show(.changes)
+                store.focusCommitMessage = id
+            },
+            Item(id: "cmd:stageall", title: "Stage All", symbol: "plus.circle", shortcut: "⌥⌘S") {
+                Task { await store.perform(id, "stage", success: "Staged all changes") { try await $0.stageAll() } }
+            },
+            Item(id: "cmd:unstageall", title: "Unstage All", symbol: "minus.circle", shortcut: "⌥⌘U") {
+                Task { await store.perform(id, "unstage", success: "Unstaged all changes") { try await $0.unstageAll() } }
+            },
             Item(id: "cmd:branches", title: "Show Branch List", symbol: "arrow.triangle.branch", shortcut: "⌘B") { RepoActions.post(.showBranchPicker) },
             Item(id: "cmd:remotes", title: "Remotes…", symbol: "network") { RepoActions.post(.showRemotes) },
             Item(id: "cmd:editor", title: "Open in Editor", symbol: "chevron.left.forwardslash.chevron.right", shortcut: "⇧⌘E") {

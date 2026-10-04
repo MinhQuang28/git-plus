@@ -18,13 +18,13 @@ struct CommitListRow: View {
         // Compact: small type and tight spacing so more history fits on screen.
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
-                Text(commit.subject).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                Text(commit.subject).appFont(size: 13, weight: .medium).lineLimit(1)
                 Spacer(minLength: 0)
                 ForEach(badges, id: \.self) { ref in
                     let isTag = ref.hasPrefix("tag: ")
                     Label(isTag ? String(ref.dropFirst(5)) : ref, systemImage: isTag ? "tag" : "arrow.triangle.branch")
                         .labelStyle(.titleAndIcon)
-                        .font(.system(size: 10, weight: .medium))
+                        .appFont(size: 11, weight: .medium)
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .background(Capsule().fill(isTag ? Theme.modified.opacity(0.18) : Color.accentColor.opacity(0.16)))
                         .foregroundStyle(isTag ? Theme.modified : Color.accentColor)
@@ -34,17 +34,17 @@ struct CommitListRow: View {
             HStack(spacing: 4) {
                 if let repoName {
                     Text(repoName)
-                        .font(.system(size: 10, weight: .semibold))
+                        .appFont(size: 11, weight: .semibold)
                         .padding(.horizontal, 5).padding(.vertical, 1)
                         .background(.tint.opacity(0.2), in: RoundedRectangle(cornerRadius: 3))
                 }
                 AvatarView(name: commit.author, email: commit.email, size: 14)
                 Text("\(commit.author) • \(RelativeTime.string(commit.date))")
-                    .font(.system(size: 11.5))
+                    .appFont(size: 11.5)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 if isHead {
-                    Text("HEAD").font(.system(size: 9, weight: .bold)).foregroundStyle(Color.accentColor)
+                    Text("HEAD").appFont(size: 10, weight: .bold).foregroundStyle(Color.accentColor)
                         .padding(.horizontal, 4).padding(.vertical, 1)
                         .overlay(Capsule().stroke(Color.accentColor.opacity(0.6)))
                 }

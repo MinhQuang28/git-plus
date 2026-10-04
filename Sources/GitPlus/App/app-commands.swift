@@ -105,7 +105,6 @@ struct AppCommands: Commands {
             Button("Force Push (with Lease)…") { if let id = currentRepoID { confirmForcePush(id) } }
                 .keyboardShortcut("p", modifiers: [.command, .shift, .option])
             Divider()
-            Button("Undo Last Commit") { if let id = currentRepoID { RepoActions.undoLastCommit(store, id) } }
             Button("Remotes…") { RepoActions.post(.showRemotes) }
             Divider()
             Button("Open in Editor") { if let repo = currentRepo { RepoActions.open(repo, editor: true) } }
@@ -127,6 +126,11 @@ struct AppCommands: Commands {
             Button("Smaller Diff Text") { adjustFont(-1) }.keyboardShortcut("-")
             Button("Default Diff Text Size") { UserDefaults.standard.set(12.5, forKey: "diffFontSize") }.keyboardShortcut("0")
             Divider()
+            Button("Bigger Interface Text") { stepInterfaceText(+1) }.keyboardShortcut("=", modifiers: [.command, .control])
+            Button("Smaller Interface Text") { stepInterfaceText(-1) }.keyboardShortcut("-", modifiers: [.command, .control])
+            Button("Default Interface Text") { UserDefaults.standard.set(UITextScale.standard.rawValue, forKey: UITextScale.key) }
+                .keyboardShortcut("0", modifiers: [.command, .control])
+            Divider()
         }
     }
 
@@ -135,6 +139,11 @@ struct AppCommands: Commands {
     private func adjustFont(_ delta: Double) {
         let current = UserDefaults.standard.object(forKey: "diffFontSize") as? Double ?? 12.5
         UserDefaults.standard.set(min(max(current + delta, 9), 22), forKey: "diffFontSize")
+    }
+
+    private func stepInterfaceText(_ delta: Int) {
+        let current = UserDefaults.standard.object(forKey: UITextScale.key) as? Double ?? UITextScale.standard.rawValue
+        UserDefaults.standard.set(UITextScale.step(from: current, by: delta).rawValue, forKey: UITextScale.key)
     }
 
     @MainActor private func confirmForcePush(_ id: UUID) { ForcePushConfirmation.run(store, id) }

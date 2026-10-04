@@ -13,6 +13,8 @@ struct RepositoryListPanel: View {
     @State private var renameText = ""
     @FocusState private var filterFocused: Bool
     @FocusState private var renameFocused: Bool
+    /// Keyboard highlight (↑/↓ in the filter field, Return opens it).
+    @State private var highlightedID: UUID?
 
     private var selection: SidebarSelection? { SidebarSelection(rawValue: storedSelection) }
     private var collapsed: Set<String> { Set(collapsedRaw.split(separator: ",").map(String.init)) }
@@ -27,13 +29,31 @@ struct RepositoryListPanel: View {
 
     private func matches(_ repo: RepoEntry) -> Bool { filter.isEmpty || repo.name.localizedCaseInsensitiveContains(filter) }
 
+    /// Repositories in on-screen order (pinned first, collapsed groups skipped), each once.
+    private var visibleRepos: [RepoEntry] {
+        var seen = Set<UUID>()
+        let sections = store.groups.map { (SidebarSelection.group($0.id), Optional($0.id)) } + [(.ungrouped, nil)]
+        let grouped = sections.flatMap { key, id in isCollapsed(key) ? [] : store.repos(in: id).filter(matches) }
+        return (store.pinnedRepos.filter(matches) + grouped).filter { seen.insert($0.id).inserted }
+    }
+
+    private func moveHighlight(_ delta: Int) -> KeyPress.Result {
+        let repos = visibleRepos
+        guard !repos.isEmpty else { return .ignored }
+        let current = repos.firstIndex { $0.id == highlightedID } ?? (delta > 0 ? -1 : repos.count)
+        highlightedID = repos[min(max(current + delta, 0), repos.count - 1)].id
+        return .handled
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Filter", text: $filter).textFieldStyle(.plain).focused($filterFocused)
-                        .onSubmit(openFirstMatch)
+                        .onSubmit(openHighlighted)
+                        .onKeyPress(.downArrow) { moveHighlight(1) }
+                        .onKeyPress(.upArrow) { moveHighlight(-1) }
                 }
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .glassEffect(.regular, in: .capsule)
@@ -51,16 +71,17 @@ struct RepositoryListPanel: View {
                 .fixedSize()
             }
             .padding(10)
+            ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     let pinned = store.pinnedRepos.filter(matches)
                     if !pinned.isEmpty {
                         HStack(spacing: 6) {
-                            Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary)
-                            Text("Pinned").font(.system(size: 13, weight: .bold))
+                            Image(systemName: "pin.fill").appFont(.caption).foregroundStyle(.secondary)
+                            Text("Pinned").appFont(size: 13, weight: .bold)
                         }
                         .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
-                        ForEach(pinned) { row($0) }
+                        ForEach(pinned) { row($0, pinned: true) }
                     }
                     ForEach(store.groups) { group in
                         section(.group(group.id), name: group.name, groupID: group.id)
@@ -69,8 +90,11 @@ struct RepositoryListPanel: View {
                 }
                 .padding(.bottom, 10)
             }
+            .onChange(of: highlightedID) { _, id in if let id { proxy.scrollTo(id.uuidString) } }
+            }
         }
         .onAppear { filterFocused = true }
+        .onChange(of: filter) { highlightedID = filter.isEmpty ? nil : visibleRepos.first?.id }
         .onExitCommand { switcher.isExpanded = false }
     }
 
@@ -93,7 +117,7 @@ struct RepositoryListPanel: View {
             } else {
                 Button { toggleCollapsed(key) } label: {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
+                        .appFont(size: 10, weight: .semibold)
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(isCollapsed(key) ? 0 : 90))
                         .frame(width: 14, height: 18)
@@ -103,13 +127,13 @@ struct RepositoryListPanel: View {
                 .help(isCollapsed(key) ? "Show repositories" : "Hide repositories")
                 // Folder icon sets groups apart from the repository rows below them.
                 Image(systemName: groupID == nil ? "tray.fill" : "folder.fill")
-                    .font(.system(size: 13))
+                    .appFont(size: 13)
                     .foregroundStyle(groupID == nil ? Color.secondary : Color.accentColor)
                     .frame(width: 18)
-                Text(name).font(.system(size: 13, weight: .bold))
-                Text("\(count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                Text(name).appFont(size: 13, weight: .bold)
+                Text("\(count)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
                 Spacer()
-                Image(systemName: "rectangle.grid.1x2").font(.caption).foregroundStyle(.secondary)
+                Image(systemName: "rectangle.grid.1x2").appFont(.caption).foregroundStyle(.secondary)
                     .help("Open group overview")
             }
         }
@@ -118,6 +142,11 @@ struct RepositoryListPanel: View {
         .onTapGesture(count: 2) { startRename(key.rawValue, name) }
         .onTapGesture { pick(key) }
         .hoverHighlight()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(name) group, \(count) repositories")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { pick(key) }
+        .accessibilityAction(named: isCollapsed(key) ? "Expand" : "Collapse") { toggleCollapsed(key) }
         .dropDestination(for: String.self) { items, _ in
             store.move(repoIDs: items.compactMap(UUID.init(uuidString:)), to: groupID)
             return true
@@ -138,9 +167,11 @@ struct RepositoryListPanel: View {
         }
     }
 
-    private func row(_ repo: RepoEntry) -> some View {
+    /// `pinned`: the copy in the Pinned section (gets its own scroll id; the group copy is the scroll target).
+    private func row(_ repo: RepoEntry, pinned: Bool = false) -> some View {
         let status = store.statuses[repo.id]
         let isCurrent = selection == .repo(repo.id)
+        let isHighlighted = highlightedID == repo.id
         return HStack(spacing: 10) {
             ProviderIcon(provider: status?.remote?.provider)
             Text(repo.name).lineLimit(1)
@@ -151,11 +182,16 @@ struct RepositoryListPanel: View {
                 SyncBadge(status: status)
             }
         }
-        .padding(.horizontal, 14).frame(height: 32)
-        .background(isCurrent ? Color.accentColor.opacity(0.22) : .clear)
+        .padding(.horizontal, 14).frame(minHeight: 32)
+        .background(isCurrent ? Color.accentColor.opacity(0.22) : isHighlighted ? Color.accentColor.opacity(0.12) : .clear)
+        .overlay { if isHighlighted { RoundedRectangle(cornerRadius: 4).stroke(Color.accentColor, lineWidth: 1).padding(.horizontal, 4) } }
         .contentShape(Rectangle())
         .onTapGesture { pick(.repo(repo.id)) }
         .hoverHighlight()
+        .id(pinned ? "pinned:\(repo.id)" : repo.id.uuidString)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { pick(.repo(repo.id)) }
         .draggable(repo.id.uuidString)
         .contextMenu { RepoContextMenu(repo: repo, selection: selectionBinding) }
         .help(repo.path)
@@ -172,10 +208,9 @@ struct RepositoryListPanel: View {
         switcher.isExpanded = false
     }
 
-    private func openFirstMatch() {
-        if let first = (store.groups.map(\.id).map(Optional.some) + [nil]).flatMap({ store.repos(in: $0) }).first(where: matches) {
-            pick(.repo(first.id))
-        }
+    /// Return in the filter: the highlighted repository, else the first match.
+    private func openHighlighted() {
+        if let id = highlightedID ?? visibleRepos.first?.id { pick(.repo(id)) }
     }
 
     private func startRename(_ key: String, _ current: String) {

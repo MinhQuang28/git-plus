@@ -63,7 +63,7 @@ struct BranchToolbarButton: View {
         Button { isPresented.toggle() } label: {
             HStack(spacing: 6) {
                 Image(systemName: "arrow.triangle.branch")
-                Text(branch).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text(branch).appFont(size: 12, weight: .semibold).lineLimit(1)
             }
             .padding(.horizontal, 4)
         }
@@ -104,7 +104,8 @@ struct SyncToolbarButton: View {
             Button("Remotes…") { RepoActions.post(.showRemotes) }
         } label: {
             if busy {
-                Label { Text("Syncing…") } icon: { ProgressView().controlSize(.small) }.labelStyle(.titleAndIcon)
+                Label { Text(WorkspaceStore.progressTitle(store.busyLabels[repo.id] ?? "sync")) } icon: { ProgressView().controlSize(.small) }
+                    .labelStyle(.titleAndIcon)
             } else {
                 Label {
                     Text(suggestion.title)

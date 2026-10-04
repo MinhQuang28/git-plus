@@ -48,8 +48,8 @@ extension GitService {
         _ = try await git(["stash", "push", "--include-untracked", "-m", "Discarded by Git Plus"])
     }
 
-    /// Restores what `discardAll()` put aside.
-    func undoDiscardAll() async throws { _ = try await git(["stash", "pop", "--index", "stash@{0}"]) }
+    /// Restores what `discardAll()` (or a quick stash) put aside.
+    func popLatestStash() async throws { _ = try await git(["stash", "pop", "--index", "stash@{0}"]) }
 
     /// The subset of `paths` (absolute or repo-relative) that `.gitignore` rules ignore.
     func ignoredPaths(_ paths: [String]) async -> Set<String> {

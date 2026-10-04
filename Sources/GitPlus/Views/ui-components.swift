@@ -63,12 +63,13 @@ struct IconButton: View {
     var role: ButtonRole? = nil
     let action: () -> Void
     @State private var hovering = false
+    @Environment(\.uiTextScale) private var scale
 
     var body: some View {
         Button(role: role, action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 22, height: 22)
+                .appFont(size: 12, weight: .medium)
+                .frame(width: 22 * scale, height: 22 * scale)
                 .background(RoundedRectangle(cornerRadius: 5).fill(hovering ? Theme.barHover : .clear))
                 .contentShape(Rectangle())
         }
@@ -88,9 +89,9 @@ struct SectionHeader<Actions: View>: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(title.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(0.4)
+            Text(title.uppercased()).appFont(size: 11, weight: .semibold).tracking(0.4)
             Text("\(count)")
-                .font(.system(size: 10, weight: .bold).monospacedDigit())
+                .appFont(size: 11, weight: .bold, monospacedDigit: true)
                 .padding(.horizontal, 6).padding(.vertical, 1)
                 .background(Capsule().fill(.secondary.opacity(0.18)))
             Spacer()
@@ -110,7 +111,7 @@ struct ToastView: View {
         HStack(spacing: Spacing.s) {
             Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
                 .foregroundStyle(toast.isError ? Theme.deleted : Theme.added)
-            Text(toast.message).font(.body.weight(.medium)).lineLimit(2)
+            Text(toast.message).appFont(.body, weight: .medium).lineLimit(2)
             if let title = toast.actionTitle, let action = toast.action {
                 Divider().frame(height: 16)
                 Button(title) {
@@ -139,8 +140,8 @@ struct FailureBanner: View {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
                 Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(Theme.deleted)
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
-                    Text(failure.title).font(.headline)
-                    Text(failure.hint?.explanation ?? firstLine).font(.callout).foregroundStyle(.secondary)
+                    Text(failure.title).appFont(.headline)
+                    Text(failure.hint?.explanation ?? firstLine).appFont(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Spacing.s)
@@ -148,7 +149,7 @@ struct FailureBanner: View {
             }
             if showDetail {
                 ScrollView {
-                    Text(failure.detail).font(.mono).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    Text(failure.detail).appFont(.callout, design: .monospaced).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 140)
                 .padding(Spacing.s)
@@ -221,7 +222,7 @@ struct StatusPill: View {
             if let symbol { Image(systemName: symbol) }
             Text(text).monospacedDigit()
         }
-        .font(.caption.weight(.medium))
+        .appFont(.caption, weight: .medium)
         .padding(.horizontal, Spacing.s).padding(.vertical, Spacing.xxs + 1)
         .background(Capsule().fill(tint.opacity(0.14)))
         .foregroundStyle(tint)
@@ -235,7 +236,7 @@ struct KeyboardHint: View {
 
     var body: some View {
         Text(keys)
-            .font(.caption.monospaced())
+            .appFont(.caption, design: .monospaced)
             .foregroundStyle(.secondary)
             .padding(.horizontal, Spacing.xs + 1).padding(.vertical, 1)
             .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.separator))
@@ -251,7 +252,7 @@ struct OptionChip: View {
     var body: some View {
         Button { isOn.toggle() } label: {
             Label(title, systemImage: symbol)
-                .font(.system(size: 11, weight: .medium))
+                .appFont(size: 11, weight: .medium)
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(Capsule().fill(isOn ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
                 .overlay(Capsule().stroke(isOn ? Color.accentColor.opacity(0.6) : Theme.separator))

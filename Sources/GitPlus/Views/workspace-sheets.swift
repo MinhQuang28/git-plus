@@ -18,7 +18,7 @@ struct RemotesSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Remotes of \(repo.name)").font(.title3.weight(.semibold)).padding(Spacing.l)
+            Text("Remotes of \(repo.name)").appFont(.title3, weight: .semibold).padding(Spacing.l)
             Form {
                 if remotes.isEmpty {
                     Text("No remotes yet. Add one below to push and pull.").foregroundStyle(.secondary)
@@ -27,7 +27,7 @@ struct RemotesSheet: View {
                     Section(remote.name) {
                         HStack {
                             TextField("URL", text: Binding(get: { editing[remote.name] ?? remote.fetchURL }, set: { editing[remote.name] = $0 }))
-                                .font(.mono)
+                                .appFont(.callout, design: .monospaced)
                             if let edited = editing[remote.name], edited != remote.fetchURL, !edited.isEmpty {
                                 Button("Save") { run("set remote URL", "Updated \(remote.name)") { try await $0.setRemoteURL(remote.name, url: edited) } }
                                     .buttonStyle(.glassProminent)
@@ -37,13 +37,13 @@ struct RemotesSheet: View {
                                 .help("Remove \(remote.name)")
                         }
                         if remote.pushURL != remote.fetchURL {
-                            LabeledContent("Push URL", value: remote.pushURL).font(.caption)
+                            LabeledContent("Push URL", value: remote.pushURL).appFont(.caption)
                         }
                     }
                 }
                 Section("Add Remote") {
                     TextField("Name", text: $newName, prompt: Text(remotes.isEmpty ? "origin" : "upstream"))
-                    TextField("URL", text: $newURL, prompt: Text("git@github.com:owner/repo.git")).font(.mono)
+                    TextField("URL", text: $newURL, prompt: Text("git@github.com:owner/repo.git")).appFont(.callout, design: .monospaced)
                     HStack {
                         Spacer()
                         Button("Add Remote") {
@@ -100,7 +100,7 @@ struct CloneSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.m) {
-            Text("Clone a Repository").font(.title3.weight(.semibold))
+            Text("Clone a Repository").appFont(.title3, weight: .semibold)
             Form {
                 TextField("Repository URL", text: $remote, prompt: Text("https://github.com/owner/repo.git or git@…"))
                     .onChange(of: remote) { _, new in
@@ -120,9 +120,9 @@ struct CloneSheet: View {
             }
             .formStyle(.grouped)
             if exists {
-                Label("\(destination.path) already exists.", systemImage: "exclamationmark.triangle").foregroundStyle(Theme.modified).font(.callout)
+                Label("\(destination.path) already exists.", systemImage: "exclamationmark.triangle").foregroundStyle(Theme.modified).appFont(.callout)
             }
-            Text("Uses your git credentials (SSH keys, credential helper, `gh auth setup-git`).").font(.caption).foregroundStyle(.secondary)
+            Text("Uses your git credentials (SSH keys, credential helper, `gh auth setup-git`).").appFont(.caption).foregroundStyle(.secondary)
             HStack {
                 if isCloning { ProgressView().controlSize(.small); Text("Cloning…").foregroundStyle(.secondary) }
                 Spacer()
@@ -170,7 +170,7 @@ struct ActivityView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Activity").font(.title3.weight(.semibold))
+                Text("Activity").appFont(.title3, weight: .semibold)
                 Spacer()
                 Button("Clear Finished") { store.clearFinishedActivities() }.disabled(store.activities.allSatisfy(\.isRunning))
                 Button("Done", action: dismiss).keyboardShortcut(.defaultAction)
@@ -189,12 +189,12 @@ struct ActivityView: View {
                         Text(item.label.prefix(1).uppercased() + item.label.dropFirst()).fontWeight(.medium)
                         Text(item.repoName).foregroundStyle(.secondary)
                         Spacer()
-                        Text(duration(item)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                        Text(item.started.formatted(date: .omitted, time: .standard)).font(.caption).foregroundStyle(.tertiary)
+                        Text(duration(item)).appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
+                        Text(item.started.formatted(date: .omitted, time: .standard)).appFont(.caption).foregroundStyle(.tertiary)
                     }
                     if let error = item.error {
                         Text(error)
-                            .font(.caption.monospaced())
+                            .appFont(.caption, design: .monospaced)
                             .foregroundStyle(.secondary)
                             .lineLimit(expanded.contains(item.id) ? nil : 2)
                             .textSelection(.enabled)

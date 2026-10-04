@@ -123,6 +123,7 @@ struct RepoWorkspaceView: View {
         .sheet(isPresented: $showConflicts) { ConflictsSheet(repo: repo) { showConflicts = false } }
         .sheet(isPresented: $showMerge) { MergeSheet(repo: repo) { showMerge = false } }
         .sheet(isPresented: $showRemotes) { RemotesSheet(repo: repo) { showRemotes = false } }
+        .branchSwitchDialog(repoID: repo.id)
         .sheet(item: $inspection) { item in
             FileInspectorView(repo: repo, path: item.path, mode: item.mode, remote: status?.remote) { inspection = nil }
         }
@@ -243,10 +244,12 @@ struct MultiSelectionView: View {
         }
         .confirmationDialog("Discard changes to \(files.count) files?", isPresented: $confirmDiscard) {
             Button("Discard Changes", role: .destructive) {
-                run("discard", success: "Discarded \(files.count) files") { [files] in try await $0.discard(files) }
+                let picked = files
+                clear()
+                store.discard(picked, in: repo.id)
             }
         } message: {
-            Text("This cannot be undone.")
+            Text("You can undo this right after.")
         }
     }
 

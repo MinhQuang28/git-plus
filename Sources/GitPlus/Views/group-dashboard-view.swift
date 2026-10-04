@@ -50,7 +50,7 @@ struct GroupDashboardView: View {
                                 Text(f.rawValue)
                                 Text("\(n)").monospacedDigit().foregroundStyle(.secondary)
                             }
-                            .font(.callout.weight(.medium))
+                            .appFont(.callout, weight: .medium)
                             .padding(.horizontal, 10).padding(.vertical, Spacing.xs)
                             .background(Capsule().fill(filter == f ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
                             .overlay(Capsule().stroke(filter == f ? Color.accentColor.opacity(0.6) : Theme.separator))
@@ -115,13 +115,13 @@ struct RepoCard: View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             HStack(spacing: Spacing.s) {
                 ProviderIcon(provider: status?.remote?.provider)
-                Text(repo.name).font(.headline).lineLimit(1)
+                Text(repo.name).appFont(.headline).lineLimit(1)
                 Spacer(minLength: 0)
                 if store.busy.contains(repo.id) { ProgressView().controlSize(.small) }
-                if repo.isPinned == true { Image(systemName: "pin.fill").font(.caption).foregroundStyle(.secondary) }
+                if repo.isPinned == true { Image(systemName: "pin.fill").appFont(.caption).foregroundStyle(.secondary) }
             }
             Label(status?.branch ?? "–", systemImage: "arrow.triangle.branch")
-                .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                .appFont(.callout).foregroundStyle(.secondary).lineLimit(1)
             HStack(spacing: Spacing.xs) {
                 if let s = status {
                     if let op = s.operation { StatusPill(text: op.title, symbol: "exclamationmark.triangle.fill", tint: Theme.conflict) }
@@ -140,7 +140,7 @@ struct RepoCard: View {
                 Sparkline(values: sparkline).frame(height: 22)
                 Spacer(minLength: Spacing.s)
                 Text(status?.lastFetched.map { "fetched \(RelativeTime.string($0))" } ?? "never fetched")
-                    .font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                    .appFont(.caption).foregroundStyle(.tertiary).lineLimit(1)
             }
         }
         .padding(Spacing.m)

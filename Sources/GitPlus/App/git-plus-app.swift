@@ -9,14 +9,18 @@ struct GitPlusApp: App {
     var body: some Scene {
         WindowGroup("Git Plus") {
             ContentView()
+                .scaledInterfaceText()
                 .environment(store)
                 .frame(minWidth: 1000, minHeight: 600)
                 .onAppear { appDelegate.store = store }
         }
-        .commands { AppCommands(store: store) }
+        .commands {
+            AppCommands(store: store)
+            ChangesCommands(store: store)
+        }
 
         Settings {
-            SettingsView()
+            SettingsView().scaledInterfaceText()
         }
     }
 }

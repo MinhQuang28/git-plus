@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import SwiftUI   // AccessibilityNotification (toast announcements)
 
 /// Owns the workspace (groups + repos), persists it, and tracks live repo status.
 @MainActor @Observable
@@ -12,13 +13,24 @@ final class WorkspaceStore {
     private(set) var trees: [UUID: WorkingTree] = [:]
     /// Open repository windows per repo id (ref-counted); only these pay for a full untracked-file scan.
     @ObservationIgnored private var openRepos: [UUID: Int] = [:]
-    private(set) var busy: Set<UUID> = []
+    /// Running operation per repository ("push", "commit", …); shown as "Pushing…" etc.
+    private(set) var busyLabels: [UUID: String] = [:]
+    var busy: Dictionary<UUID, String>.Keys { busyLabels.keys }
     /// Bumped after every mutation of a repo so views can reload history/changes.
     private(set) var revisions: [UUID: Int] = [:]
     /// Bumped when only the working tree / index changed outside Git Plus (history stays loaded).
     private(set) var worktreeRevisions: [UUID: Int] = [:]
     /// When each repository's last Git Plus operation finished; file events right after it are our own.
     @ObservationIgnored private var lastMutation: [UUID: Date] = [:]
+
+    /// Unfinished commit messages per repository; survive tab/repo switches and relaunches.
+    var commitDrafts: [UUID: CommitDraft] = CommitDraft.load() { didSet { CommitDraft.save(commitDrafts) } }
+
+    /// Set by "Go to Commit Message" (⌘L); the repository's commit box focuses its summary and clears it.
+    var focusCommitMessage: UUID?
+
+    /// Branch switch waiting for "leave or bring my changes?" (see `requestSwitch`).
+    var pendingBranchSwitch: BranchSwitchRequest?
 
     /// Last failure, shown as a non-blocking banner with a suggested fix.
     var failure: Failure?
@@ -52,6 +64,7 @@ final class WorkspaceStore {
     func showToast(_ message: String, isError: Bool = false, actionTitle: String? = nil, action: (@MainActor () -> Void)? = nil) {
         let t = Toast(message: message, isError: isError, actionTitle: actionTitle, action: action)
         toast = t
+        AccessibilityNotification.Announcement(message).post()
         Task {
             try? await Task.sleep(for: .seconds(action == nil ? 3 : 7))
             if toast?.id == t.id { toast = nil }
@@ -255,8 +268,13 @@ final class WorkspaceStore {
     func perform(_ id: UUID, _ label: String, success: String? = nil,
                  undo: (@Sendable (GitService) async throws -> Void)? = nil,
                  _ op: @escaping @Sendable (GitService) async throws -> Void) async -> Bool {
-        guard let repo = repo(id), !busy.contains(id) else { return false }
-        busy.insert(id)
+        // Another operation is running: queue behind it instead of silently dropping the click.
+        if let running = busyLabels[id] {
+            showToast("Waiting for \(running) to finish — \(label) is queued")
+            while busyLabels[id] != nil { try? await Task.sleep(for: .milliseconds(150)) }
+        }
+        guard let repo = repo(id) else { return false }
+        busyLabels[id] = label
         let activity = beginActivity(repo.name, label)
         var ok = true
         do {
@@ -267,7 +285,7 @@ final class WorkspaceStore {
             report("\(label.prefix(1).uppercased() + label.dropFirst()) failed", error, repoID: id)
             ok = false
         }
-        busy.remove(id)
+        busyLabels[id] = nil
         revisions[id, default: 0] += 1
         await refreshStatus([id])
         lastMutation[id] = Date()
@@ -326,7 +344,7 @@ final class WorkspaceStore {
 
     private func runEach(_ ids: [UUID], label: String, done: String, _ op: @escaping @Sendable (GitService) async throws -> Void) async {
         let targets = ids.compactMap(repo).filter { !busy.contains($0.id) }
-        targets.forEach { busy.insert($0.id) }
+        targets.forEach { busyLabels[$0.id] = label }
         var activityIDs: [UUID: UUID] = [:]
         for repo in targets { activityIDs[repo.id] = beginActivity(repo.name, label) }
         var failures: [(UUID, String)] = []
@@ -334,7 +352,7 @@ final class WorkspaceStore {
             do { try await op(GitService(repo: repo.url)); return (repo.id, nil) }
             catch { return (repo.id, "\(repo.name): \(error.localizedDescription)") }
         }) { result in
-            busy.remove(result.0)
+            busyLabels[result.0] = nil
             if let id = activityIDs[result.0] { finishActivity(id, error: result.1) }
             if let failure = result.1 { failures.append((result.0, failure)) }
         }

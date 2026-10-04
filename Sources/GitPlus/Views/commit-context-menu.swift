@@ -162,7 +162,7 @@ struct CherryPickSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Cherry-pick \(commit.shortHash) onto…").font(.headline)
+            Text("Cherry-pick \(commit.shortHash) onto…").appFont(.headline)
             Text(commit.subject).foregroundStyle(.secondary).lineLimit(1)
             List(branches.local.filter { $0 != branches.current }, id: \.self, selection: $target) { Text($0) }
                 .frame(height: 260)

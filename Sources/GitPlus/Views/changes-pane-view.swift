@@ -89,15 +89,14 @@ struct ChangesPaneView: View {
         .sheet(isPresented: $showStash) { StashSheet(repo: repo) }
         .confirmationDialog(discardTitle, isPresented: Binding(get: { !discarding.isEmpty }, set: { if !$0 { discarding = [] } })) {
             Button("Discard Changes", role: .destructive) {
-                let files = discarding
-                run("discard", success: files.count == 1 ? "Discarded \(files[0].path)" : "Discarded \(files.count) files") { try await $0.discard(files) }
+                store.discard(discarding, in: repo.id)
             }
         } message: {
-            Text("This cannot be undone.")
+            Text("You can undo this right after.")
         }
         .confirmationDialog("Discard all changes?", isPresented: $confirmDiscardAll) {
             Button("Discard All Changes", role: .destructive) {
-                run("discard all", success: "Discarded all changes", undo: { try await $0.undoDiscardAll() }) { try await $0.discardAll() }
+                run("discard all", success: "Discarded all changes", undo: { try await $0.popLatestStash() }) { try await $0.discardAll() }
             }
         } message: {
             Text("Every change, including untracked files, is set aside in a stash, so you can still undo this.")
@@ -109,10 +108,10 @@ struct ChangesPaneView: View {
             Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
             TextField("Filter changed files", text: $filter).textFieldStyle(.plain)
             if !filter.isEmpty {
-                Button { filter = "" } label: { Image(systemName: "xmark.circle.fill") }.buttonStyle(.plain).foregroundStyle(.secondary)
+                Button { filter = "" } label: { Label("Clear filter", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
-        .font(.callout)
+        .appFont(.callout)
         .padding(.horizontal, Spacing.s).padding(.vertical, 5)
         .background(Capsule().fill(Theme.headerBackground))
         .overlay(Capsule().stroke(Theme.separator))
@@ -126,7 +125,7 @@ struct ChangesPaneView: View {
             Button("Discard All Changes…", role: .destructive) { confirmDiscardAll = true }
                 .disabled(hasConflicts)
         } label: {
-            Image(systemName: "ellipsis.circle")
+            Label("More actions", systemImage: "ellipsis.circle").labelStyle(.iconOnly)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -221,33 +220,34 @@ struct ChangesPaneView: View {
     }
 }
 
-/// File row: name + dimmed folder, status icon, and a stage/unstage button on hover.
+/// File row: type icon, name over dimmed folder, stage/unstage button on hover, status letter.
 struct WorkingFileRow: View {
     let file: ChangedFile
     let toggle: () -> Void
     @State private var hovering = false
+    /// `.increased` while the row is selected — the stage button shows then too, not only on hover.
+    @Environment(\.backgroundProminence) private var prominence
 
     var body: some View {
+        let showButton = hovering || prominence == .increased
         HStack(spacing: 6) {
-            FileStatusIcon(status: file.status)
-            VStack(alignment: .leading, spacing: 0) {
-                Text((file.path as NSString).lastPathComponent).lineLimit(1)
-                let dir = (file.path as NSString).deletingLastPathComponent
-                if !dir.isEmpty {
-                    Text(dir).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
-                }
-            }
+            FileNameLabel(file: file)
             Spacer(minLength: 4)
             if file.additions + file.deletions > 0 {
-                Text("+\(file.additions) −\(file.deletions)").font(.caption.monospacedDigit()).foregroundStyle(.tertiary)
+                Text("+\(file.additions) −\(file.deletions)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
             }
+            // Fixed slot: the button fades in/out without shifting the row.
             IconButton(symbol: icon, help: help, action: toggle)
-                .opacity(hovering ? 1 : 0.45)
+                .opacity(showButton ? 1 : 0)
+                .allowsHitTesting(showButton)
+                .accessibilityHidden(true)
+            FileStatusLetter(status: file.status)
         }
         .padding(.vertical, 2)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .accessibilityElement(children: .combine)
+        .accessibilityValue(file.area == .staged ? "Staged" : file.area == .conflicted ? "Conflicted" : "Not staged")
         .accessibilityAction(named: help, toggle)
         .help(file.oldPath.map { "\($0) → \(file.path)" } ?? file.path)
     }

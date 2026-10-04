@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Card under the repository switcher: branch → upstream, sync / change state at a glance,
-/// and a callout with the next step. Only shown when the branch needs attention (diverged, unpublished,
-/// conflicts); the toolbar already covers the normal state and the operation banner covers merges/rebases.
+/// Compact banner under the repository switcher, shown only when the branch needs attention
+/// (unpublished, diverged, conflicts): one line of state + the next step. Branch name and change
+/// count already live in the toolbar and the Changes header, so they aren't repeated here.
 struct RepoStatusHeader: View {
     @Environment(WorkspaceStore.self) private var store
     let repo: RepoEntry
@@ -10,66 +10,47 @@ struct RepoStatusHeader: View {
 
     var body: some View {
         let suggestion = SyncSuggestion(status)
-        if suggestion.needsAttention || (status?.conflicts ?? 0) > 0 { card(suggestion) }
-    }
-
-    private func card(_ suggestion: SyncSuggestion) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            HStack(spacing: Spacing.xs) {
-                Image(systemName: "arrow.triangle.branch").foregroundStyle(.secondary)
-                Text(status?.branch ?? "–").font(.rowTitle).lineLimit(1).truncationMode(.middle)
-                if let upstream = status?.upstream {
-                    Text("→ \(upstream)").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                }
-                Spacer(minLength: 0)
+        let conflicts = status?.conflicts ?? 0
+        if conflicts > 0 {
+            banner(symbol: "exclamationmark.triangle.fill", tint: Theme.conflict,
+                   text: "\(conflicts) conflicted file\(conflicts == 1 ? "" : "s")") {
+                Button("Resolve…") { RepoActions.post(.showConflicts) }.buttonStyle(.glassProminent)
             }
-            if let s = status {
-                HStack(spacing: Spacing.xs) {
-                    if s.ahead > 0 { StatusPill(text: "↑\(s.ahead)", tint: Theme.ahead) }
-                    if s.behind > 0 { StatusPill(text: "↓\(s.behind)", tint: Theme.behind) }
-                    if s.conflicts > 0 {
-                        StatusPill(text: "\(s.conflicts) conflicted", symbol: "exclamationmark.triangle.fill", tint: Theme.conflict)
-                    } else if s.changedFiles > 0 {
-                        StatusPill(text: "\(s.changedFiles) changed", symbol: "pencil", tint: Theme.modified)
-                    } else {
-                        StatusPill(text: "clean", symbol: "checkmark", tint: Theme.added)
-                    }
-                    Spacer(minLength: 0)
+        } else if case .diverged(let ahead, let behind) = suggestion {
+            banner(symbol: "arrow.up.arrow.down", tint: Theme.modified, text: "Diverged ↑\(ahead) ↓\(behind)",
+                   help: "\(ahead) local and \(behind) remote commits. Rebase or merge to combine them.") {
+                Button("Rebase") { Task { await store.pull([repo.id], mode: .rebase) } }.buttonStyle(.glassProminent)
+                Menu {
+                    Button("Merge") { Task { await store.pull([repo.id], mode: .merge) } }
+                    Button("Force Push (with Lease)…") { ForcePushConfirmation.run(store, repo.id) }
+                } label: {
+                    Label("More ways to combine", systemImage: "ellipsis").labelStyle(.iconOnly)
                 }
+                .menuStyle(.button).buttonStyle(.glass).menuIndicator(.hidden).fixedSize()
             }
-            callout(suggestion)
+        } else if case .publish = suggestion {
+            banner(symbol: "icloud.slash", tint: .secondary, text: "Not published yet",
+                   help: "This branch only exists on your Mac.") {
+                Button("Publish") { Task { await store.push(repo.id) } }.buttonStyle(.glassProminent)
+            }
         }
-        .padding(Spacing.m)
-        .background(RoundedRectangle(cornerRadius: Radius.m).fill(Theme.headerBackground))
-        .padding([.horizontal, .top], Spacing.s)
-        .padding(.bottom, Spacing.xs)
-        .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder private func callout(_ suggestion: SyncSuggestion) -> some View {
-        switch suggestion {
-        case .diverged(let ahead, let behind):
-            VStack(alignment: .leading, spacing: Spacing.s) {
-                Text("Diverged: \(ahead) local and \(behind) remote commit\(behind == 1 ? "" : "s"). Choose how to combine them.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: Spacing.s) {
-                    Button("Rebase") { Task { await store.pull([repo.id], mode: .rebase) } }.buttonStyle(.glassProminent)
-                    Button("Merge") { Task { await store.pull([repo.id], mode: .merge) } }.buttonStyle(.glass)
-                    Button("Force Push…") { ForcePushConfirmation.run(store, repo.id) }.buttonStyle(.glass)
-                }
+    private func banner<Actions: View>(symbol: String, tint: Color, text: String, help: String? = nil,
+                                       @ViewBuilder actions: () -> Actions) -> some View {
+        HStack(spacing: Spacing.s) {
+            Image(systemName: symbol).foregroundStyle(tint).appFont(.callout)
+            Text(text).appFont(.callout, weight: .medium).lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: Spacing.xs)
+            HStack(spacing: Spacing.xs) { actions() }
                 .controlSize(.small)
                 .disabled(store.busy.contains(repo.id))
-            }
-        case .publish:
-            HStack(spacing: Spacing.s) {
-                Text("This branch only exists on your Mac.").font(.callout).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Button("Publish") { Task { await store.push(repo.id) } }
-                    .buttonStyle(.glassProminent).controlSize(.small)
-                    .disabled(store.busy.contains(repo.id))
-            }
-        default:
-            EmptyView()
         }
+        .padding(.leading, Spacing.m).padding(.trailing, Spacing.s).padding(.vertical, Spacing.xs + 2)
+        .background(RoundedRectangle(cornerRadius: Radius.s).fill(Theme.headerBackground))
+        .help(help ?? text)
+        .padding(.horizontal, Spacing.s).padding(.top, Spacing.xs)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(help.map { "\(text). \($0)" } ?? text)
     }
 }

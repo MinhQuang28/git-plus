@@ -10,10 +10,21 @@ struct CommitBoxView: View {
 
     @AppStorage(CommitDefaults.summaryKey) private var defaultSummary = ""
     @AppStorage(CommitDefaults.descriptionKey) private var defaultDetails = ""
-    @State private var summary = ""
-    @State private var details = ""
-    @State private var amend = false
     @State private var recentAuthors: [Author] = []
+    @FocusState private var summaryFocused: Bool
+    @Environment(\.uiTextScale) private var scale
+
+    /// Lives in the store, so switching tab or repository doesn't throw the message away.
+    private var draft: CommitDraft {
+        get { store.draft(for: repo.id) }
+        nonmutating set { store.commitDrafts[repo.id] = newValue }
+    }
+    private var summary: String { get { draft.summary } nonmutating set { draft.summary = newValue } }
+    private var details: String { get { draft.details } nonmutating set { draft.details = newValue } }
+    private var amend: Bool { get { draft.amend } nonmutating set { draft.amend = newValue } }
+    private func binding<T>(_ path: WritableKeyPath<CommitDraft, T>) -> Binding<T> {
+        Binding(get: { draft[keyPath: path] }, set: { draft[keyPath: path] = $0 })
+    }
 
     struct Author: Hashable {
         let name: String
@@ -26,25 +37,25 @@ struct CommitBoxView: View {
     private var branch: String { status?.branch ?? "HEAD" }
     /// Nothing staged → the button stages everything first.
     private var stagesAll: Bool { stagedCount == 0 && !amend }
-    private var canCommit: Bool {
-        !summary.trimmingCharacters(in: .whitespaces).isEmpty && (amend || hasChanges) && !store.busy.contains(repo.id)
-            && (status?.conflicts ?? 0) == 0
-    }
+    private var canCommit: Bool { store.canCommit(repo.id) }
+    /// Commit (incl. hooks) running: the button shows progress and can't be pressed twice.
+    private var isCommitting: Bool { store.busyLabels[repo.id] == "commit" }
     /// Amending a commit that is already on the remote needs a force push afterwards.
     private var lastCommitPushed: Bool { amend && status?.upstream != nil && (status?.ahead ?? 0) == 0 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             HStack(spacing: Spacing.xs) {
-                TextField("Summary (required)", text: $summary)
+                TextField("Summary (required)", text: binding(\.summary))
                     .textFieldStyle(.plain)
-                    .font(.body.weight(.medium))
+                    .focused($summaryFocused)
+                    .appFont(.body, weight: .medium)
                 Menu {
                     ForEach(Self.prefixes, id: \.self) { p in
                         Button("\(p):") { applyPrefix(p) }
                     }
                 } label: {
-                    Image(systemName: "tag")
+                    Label("Commit type prefix", systemImage: "tag").labelStyle(.iconOnly)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -54,18 +65,18 @@ struct CommitBoxView: View {
             .padding(Spacing.s)
             .background(field)
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $details)
-                    .font(.callout)
+                TextEditor(text: binding(\.details))
+                    .appFont(.callout)
                     .scrollContentBackground(.hidden)
                     .padding(Spacing.xs)
                 if details.isEmpty {
                     Text("Description").foregroundStyle(.tertiary).padding(.horizontal, 9).padding(.vertical, Spacing.xs).allowsHitTesting(false)
                 }
             }
-            .frame(height: 64)
+            .frame(height: 64 * scale)
             .background(field)
             HStack(spacing: Spacing.s) {
-                Toggle("Amend", isOn: $amend).toggleStyle(.checkbox).font(.callout)
+                Toggle("Amend", isOn: binding(\.amend)).toggleStyle(.checkbox).appFont(.callout)
                     .help("Amend the last commit")
                 Menu {
                     if recentAuthors.isEmpty { Text("No other authors in recent history") }
@@ -77,29 +88,32 @@ struct CommitBoxView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .font(.callout)
+                .appFont(.callout)
                 Spacer()
                 let count = summary.count
                 if count > 50 {
-                    Text("\(count)/72").font(.caption.monospacedDigit()).foregroundStyle(count > 72 ? Theme.deleted : Theme.modified)
+                    Text("\(count)/72").appFont(.caption, monospacedDigit: true).foregroundStyle(count > 72 ? Theme.deleted : Theme.modified)
                         .help("Keep the summary under 50 characters (72 at most)")
                 }
             }
             if lastCommitPushed {
                 Label("The last commit is already pushed — amending requires a force push.", systemImage: "exclamationmark.triangle")
-                    .font(.caption).foregroundStyle(Theme.modified)
+                    .appFont(.caption).foregroundStyle(Theme.modified)
             }
             HStack(spacing: Spacing.xs) {
                 Button { commit(push: false) } label: {
-                    Text(buttonTitle).font(.body.weight(.semibold)).frame(maxWidth: .infinity)
+                    HStack(spacing: Spacing.xs) {
+                        if isCommitting { ProgressView().controlSize(.small) }
+                        Text(isCommitting ? AttributedString("Committing…") : buttonTitle).appFont(.body, weight: .semibold)
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .keyboardShortcut(.return, modifiers: .command)
-                .help("⌘↩")
+                .help(disabledReason ?? "Commit (⌘↩)")
                 Menu {
                     Button(pushTitle) { commit(push: true) }
                         .disabled(status?.remote == nil)
                 } label: {
-                    Image(systemName: "chevron.down")
+                    Label("More commit options", systemImage: "chevron.down").labelStyle(.iconOnly)
                 }
                 .menuIndicator(.hidden)
                 .fixedSize()
@@ -108,18 +122,11 @@ struct CommitBoxView: View {
             .buttonStyle(.glassProminent)
             .controlSize(.large)
             .disabled(!canCommit)
-            .background {
-                // Carries the ⌘⇧↩ shortcut for "Commit & Push".
-                Button("") { commit(push: true) }
-                    .keyboardShortcut(.return, modifiers: [.command, .shift])
-                    .disabled(!canCommit || status?.remote == nil)
-                    .opacity(0)
-                    .accessibilityHidden(true)
-            }
         }
         .padding(Spacing.m)
         .task { await loadAuthors() }
-        .onAppear { if summary.isEmpty && details.isEmpty { resetToDefaults() } }
+        .onAppear(perform: takeFocusRequest)
+        .onChange(of: store.focusCommitMessage) { takeFocusRequest() }
         .onChange(of: amend) { _, on in
             // Load the last message unless the user has typed something beyond the defaults.
             guard on, isUntouched else { return }
@@ -131,15 +138,27 @@ struct CommitBoxView: View {
         }
     }
 
+    private func takeFocusRequest() {
+        guard store.focusCommitMessage == repo.id else { return }
+        store.focusCommitMessage = nil
+        DispatchQueue.main.async { summaryFocused = true }   // after a tab switch has laid the field out
+    }
+
+    /// Why the commit button is greyed out (shown as its tooltip).
+    private var disabledReason: String? {
+        if isCommitting { return "Committing… (running hooks)" }
+        if (status?.conflicts ?? 0) > 0 { return "Resolve conflicts before committing" }
+        if !amend && !hasChanges { return "No changes to commit" }
+        if summary.trimmingCharacters(in: .whitespaces).isEmpty { return "Enter a summary to commit" }
+        return nil
+    }
+
     private var isUntouched: Bool {
         (summary.isEmpty || summary == defaultSummary) && (details.isEmpty || details == defaultDetails)
     }
 
-    /// Prefills the box with the "Default commit message" from Settings → Commit.
-    private func resetToDefaults() {
-        summary = defaultSummary
-        details = defaultDetails
-    }
+    /// Back to the "Default commit message" from Settings → Commit.
+    private func resetToDefaults() { store.commitDrafts[repo.id] = nil }
 
     private var pushTitle: String {
         status?.upstream == nil ? "Commit & Publish" : amend ? "Commit & Force Push" : "Commit & Push"
@@ -195,27 +214,7 @@ struct CommitBoxView: View {
         Self.authorCache[repo.path] = (Date(), recentAuthors)
     }
 
-    private func commit(push: Bool) {
-        guard canCommit else { return }
-        let s = summary.trimmingCharacters(in: .whitespaces), d = details.trimmingCharacters(in: .whitespacesAndNewlines)
-        let stageFirst = stagesAll, isAmend = amend
-        let needsUpstream = status?.upstream == nil
-        let id = repo.id, branch = branch
-        // Explicit `if` instead of a ternary: the closure-in-ternary form crashes the type checker.
-        var undo: (@Sendable (GitService) async throws -> Void)? = nil
-        if !isAmend { undo = { git in try await git.undoLastCommit() } }
-        Task {
-            let ok = await store.perform(id, "commit", success: push ? nil : isAmend ? "Amended last commit" : "Committed to \(branch)",
-                                         undo: undo) {
-                if stageFirst { try await $0.stageAll() }
-                try await $0.commit(summary: s, description: d, amend: isAmend)
-            }
-            guard ok else { return }
-            amend = false
-            resetToDefaults()
-            if push { await store.push(id, force: isAmend && !needsUpstream) }
-        }
-    }
+    private func commit(push: Bool) { store.commit(repo.id, push: push) }
 }
 
 /// "Stash changes" sheet.
@@ -228,7 +227,7 @@ struct StashSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Stash Changes").font(.headline)
+            Text("Stash Changes").appFont(.headline)
             TextField("Message (optional)", text: $message).textFieldStyle(.roundedBorder)
             Toggle("Include untracked files", isOn: $includeUntracked)
             HStack {

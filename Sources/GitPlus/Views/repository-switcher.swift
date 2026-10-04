@@ -50,23 +50,23 @@ struct RepositorySwitcherHeader: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 17))
+                    .appFont(size: 17)
                     .symbolRenderingMode(.hierarchical)
                     .foregroundStyle(Color.accentColor)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(caption).font(.system(size: 11)).foregroundStyle(.secondary)
-                    Text(title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                    Text(caption).appFont(size: 11).foregroundStyle(.secondary)
+                    Text(title).appFont(size: 14, weight: .semibold).lineLimit(1)
                 }
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
+                    .appFont(size: 11, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isOpen ? 180 : 0))
                     .animation(.easeOut(duration: 0.15), value: isOpen)
             }
             .padding(.horizontal, 14)
-            .frame(height: 54)
+            .frame(minHeight: 54)
             .background(hovering || isOpen ? Theme.barHover : .clear)
             .contentShape(Rectangle())
         }

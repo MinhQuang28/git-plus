@@ -163,7 +163,7 @@ final class AdvancedGitIntegrationTests: XCTestCase {
         try await git.discardAll()
         var tree = try await git.workingTree()
         XCTAssertTrue(tree.isEmpty)
-        try await git.undoDiscardAll()
+        try await git.popLatestStash()
         tree = try await git.workingTree()
         XCTAssertEqual(Set(tree.all.map(\.path)), ["a.txt", "new.txt"])
     }

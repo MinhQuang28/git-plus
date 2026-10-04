@@ -36,6 +36,43 @@ extension GitService {
 
     // MARK: Branches
 
+    /// Switches to a local branch, or creates a tracking branch for `remote/name`.
+    /// `leaveChangesOn`: stash local changes under that branch's name first (GitHub Desktop's
+    /// "leave my changes"); they come back automatically the next time that branch is checked out.
+    func switchBranch(_ name: String, isRemote: Bool = false, leaveChangesOn current: String? = nil) async throws {
+        var stashed = false
+        if let current {
+            let top = try await stashes().first?.hash
+            _ = try await git(["stash", "push", "--include-untracked", "-m", Self.leftChangesMessage(current)])
+            // "No local changes to save" also exits 0 — only a new top entry counts.
+            stashed = try await stashes().first?.hash != top
+        }
+        do {
+            _ = try await git(isRemote ? ["switch", "--track", name] : ["switch", name])
+        } catch {
+            // Switch refused: put the changes back where they were.
+            if stashed { _ = try? await git(["stash", "pop", "--index"]) }
+            throw error
+        }
+        try await restoreLeftChanges(on: isRemote ? Self.localName(ofRemote: name) : name)
+    }
+
+    static func leftChangesMessage(_ branch: String) -> String { "git-plus: changes left on \(branch)" }
+
+    /// `origin/feature/x` → `feature/x`.
+    static func localName(ofRemote branch: String) -> String {
+        branch.split(separator: "/", maxSplits: 1).dropFirst().first.map(String.init) ?? branch
+    }
+
+    /// Pops the newest stash left on `branch` by `switchBranch`, but only into a clean working tree
+    /// (changes brought along stay untouched; the stash then waits in the stash list).
+    private func restoreLeftChanges(on branch: String) async throws {
+        let message = Self.leftChangesMessage(branch)
+        guard let entry = try await stashes().first(where: { $0.message.hasSuffix(message) }),
+              try await git(["status", "--porcelain"]).isEmpty else { return }
+        try await applyStash(entry, pop: true)
+    }
+
     func renameBranch(_ old: String, to new: String) async throws { _ = try await git(["branch", "-m", old, new]) }
 
     /// `force` deletes even when not merged.

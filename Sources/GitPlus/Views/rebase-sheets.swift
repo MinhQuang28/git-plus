@@ -11,9 +11,9 @@ struct RewordSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.m) {
-            Text("Edit message of \(commit.shortHash)").font(.title3.weight(.semibold))
+            Text("Edit message of \(commit.shortHash)").appFont(.title3, weight: .semibold)
             TextEditor(text: $message)
-                .font(.mono)
+                .appFont(.callout, design: .monospaced)
                 .scrollContentBackground(.hidden)
                 .padding(Spacing.xs)
                 .background(RoundedRectangle(cornerRadius: Radius.s).fill(Theme.contextLine))
@@ -21,9 +21,9 @@ struct RewordSheet: View {
                 .frame(height: 160)
             if isPushed {
                 Label("This commit is already pushed; you'll need to force push afterwards.", systemImage: "exclamationmark.triangle")
-                    .font(.callout).foregroundStyle(Theme.modified)
+                    .appFont(.callout).foregroundStyle(Theme.modified)
             }
-            Text("Commits after it are rewritten too (new SHAs).").font(.caption).foregroundStyle(.secondary)
+            Text("Commits after it are rewritten too (new SHAs).").appFont(.caption).foregroundStyle(.secondary)
             HStack {
                 Spacer()
                 Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction)
@@ -68,9 +68,9 @@ struct InteractiveRebaseSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Interactive Rebase").font(.title3.weight(.semibold))
+                Text("Interactive Rebase").appFont(.title3, weight: .semibold)
                 Text("\(steps.count) commit\(steps.count == 1 ? "" : "s") from \(from.shortHash) to HEAD, oldest first. Drag to reorder.")
-                    .font(.callout).foregroundStyle(.secondary)
+                    .appFont(.callout).foregroundStyle(.secondary)
             }
             .padding(Spacing.l)
             Divider()
@@ -103,12 +103,12 @@ struct InteractiveRebaseSheet: View {
                 }
                 .labelsHidden()
                 .frame(width: 100)
-                Text(s.commit.shortHash).font(.mono).foregroundStyle(.secondary)
+                Text(s.commit.shortHash).appFont(.callout, design: .monospaced).foregroundStyle(.secondary)
                 Text(s.commit.subject).lineLimit(1)
                     .strikethrough(s.action == .drop)
                     .foregroundStyle(s.action == .drop ? .secondary : .primary)
                 Spacer()
-                Text(s.commit.author).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(s.commit.author).appFont(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             if s.action == .reword {
                 TextField("New message", text: step.message, axis: .vertical)
@@ -118,7 +118,7 @@ struct InteractiveRebaseSheet: View {
             }
             if s.action.meldsIntoPrevious {
                 Text(s.action == .squash ? "Combined into the commit above (messages are kept)." : "Combined into the commit above (its message is discarded).")
-                    .font(.caption).foregroundStyle(.secondary).padding(.leading, 28)
+                    .appFont(.caption).foregroundStyle(.secondary).padding(.leading, 28)
             }
         }
         .padding(.vertical, Spacing.xxs)
@@ -128,13 +128,13 @@ struct InteractiveRebaseSheet: View {
         let problem = RebaseStep.problem(steps)
         return VStack(alignment: .leading, spacing: Spacing.s) {
             if let problem {
-                Label(problem, systemImage: "exclamationmark.circle").font(.callout).foregroundStyle(Theme.deleted)
+                Label(problem, systemImage: "exclamationmark.circle").appFont(.callout).foregroundStyle(Theme.deleted)
             } else if pushedCount > 0 {
                 Label("\(pushedCount) of these commits are already pushed — you'll need to force push afterwards.", systemImage: "exclamationmark.triangle")
-                    .font(.callout).foregroundStyle(Theme.modified)
+                    .appFont(.callout).foregroundStyle(Theme.modified)
             }
             HStack {
-                Text("Conflicts stop the rebase; resolve them and continue from the banner.").font(.caption).foregroundStyle(.secondary)
+                Text("Conflicts stop the rebase; resolve them and continue from the banner.").appFont(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction)
                 Button("Start Rebase") { start() }
