@@ -123,10 +123,12 @@ final class AICommitMessageTests: XCTestCase {
             try await sh(args)
         }
         try write("a.txt", "one\n")
+        try write("old.txt", "legacy content\n")
         try await sh(["add", "."])
         try await sh(["commit", "-qm", "feat: first"])
 
         try write("a.txt", "two\n")
+        try FileManager.default.removeItem(at: dir.appendingPathComponent("old.txt"))
         try write(".env", "SECRET=1\n")
         try write("new.txt", "fresh\n")
         let generator = CommitMessageGenerator(repo: dir, config: AIConfig(baseURL: URL(string: "https://example.com")!, model: "m", apiKey: "k"),
@@ -140,6 +142,8 @@ final class AICommitMessageTests: XCTestCase {
         XCTAssertTrue(all.diff?.contains("+two") == true)
         XCTAssertTrue(all.diff?.contains("+fresh") == true)
         XCTAssertFalse(all.diff?.contains("SECRET") == true)
+        XCTAssertTrue(all.diff?.contains("deleted file mode") == true, "the deletion itself is still described")
+        XCTAssertFalse(all.diff?.contains("legacy content") == true, "deleted files' old content is not sent")
         let staged = try await ProcessRunner.run("git", ["diff", "--cached", "--name-only"], in: dir)
         XCTAssertEqual(staged, "", "the real index must stay untouched")
 

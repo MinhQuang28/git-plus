@@ -39,7 +39,7 @@ struct CommitMessageGenerator: Sendable {
                 input.diff = ""
             } else {
                 let excludes = omitted.map { ":(exclude,literal)\($0)" }
-                let diff = try await git(["diff", "--cached", "-M", "--no-color", "--no-ext-diff", "-U3", "--", "."] + excludes)
+                let diff = try await git(["diff", "--cached", "-M", "--irreversible-delete", "--no-color", "--no-ext-diff", "-U3", "--", "."] + excludes)
                 let size = diff.utf8.count
                 guard size <= CommitMessagePrompt.maxDiffBytes else { throw AIError.diffTooLarge(bytes: size) }
                 input.diff = diff
