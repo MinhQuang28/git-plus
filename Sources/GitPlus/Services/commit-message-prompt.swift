@@ -26,8 +26,16 @@ enum CommitMessagePrompt {
         "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb", "composer.lock",
         "gemfile.lock", "podfile.lock", "cargo.lock", "poetry.lock", "pipfile.lock", "go.sum", "package.resolved",
     ]
-    private static let secretNames: Set<String> = [".npmrc", ".pypirc", ".netrc", "credentials", ".htpasswd"]
-    private static let secretExtensions: Set<String> = ["pem", "key", "p12", "pfx", "keystore", "jks", "p8", "mobileprovision"]
+    private static let secretNames: Set<String> = [
+        ".npmrc", ".pypirc", ".netrc", ".htpasswd", ".pgpass", ".git-credentials", ".dockercfg", "credentials",
+        "service-account.json", "google-services.json", "googleservice-info.plist", "master.key",
+    ]
+    private static let secretExtensions: Set<String> = [
+        "pem", "key", "p12", "pfx", "keystore", "jks", "p8", "mobileprovision", "tfvars", "tfstate", "kdbx", "gpg", "asc", "ovpn", "password", "secret", "secrets",
+    ]
+    /// Config-like files whose name mentions secrets/credentials (`secrets.yml`, `aws-credentials.json`); code files
+    /// such as `secret-store.swift` still go through.
+    private static let configExtensions: Set<String> = ["json", "yml", "yaml", "toml", "ini", "properties", "plist", "xml", "conf", "cfg", "txt", ""]
     private static let generatedFolders: Set<String> = ["node_modules", "dist", "build", ".next", "coverage", "DerivedData"]
 
     /// Lockfiles, minified/generated output and likely secrets: listed by name only, content not sent.
@@ -40,11 +48,20 @@ enum CommitMessagePrompt {
         if folders.contains(where: generatedFolders.contains) { return true }
         if name.hasPrefix(".env") || secretNames.contains(name) || secretExtensions.contains(ext) { return true }
         if ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"].contains(where: name.hasPrefix) { return true }
+        if configExtensions.contains(ext), ["secret", "credential", "password"].contains(where: name.contains) { return true }
         return false
     }
 
-    /// Masks well-known credential formats that slipped into ordinary files.
+    /// Masks credentials that slipped into ordinary files: well-known token formats, then any value assigned to
+    /// a key named like a secret (`password: …`, `API_KEY="…"`, `"client_secret": "…"`).
     static func redactSecrets(_ text: String) -> String {
+        let secretKey = #"(?i)((?:pass(?:word|wd|phrase)?|pwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|auth[_-]?(?:key|token)|credentials?|dsn|connection[_-]?string)[A-Za-z0-9_\-]*["']?\s*[:=]\s*)"#
+        let assigned = [
+            (secretKey + #"(["'])[^"'\s]{6,}\2"#, "$1$2[REDACTED]$2"),        // quoted value
+            (secretKey + #"(?!["'\[])([^\s"'(),;{}]{6,})"#, "$1[REDACTED]"),   // bare value (.env / YAML style)
+            (#"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=\-]{16,}"#, "$1 [REDACTED]"),
+            (#"://([^/\s:@]+):([^/\s@]+)@"#, "://$1:[REDACTED]@"),             // user:password@host in URLs
+        ]
         let patterns = [
             #"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"#,
             #"\bsk-(?:proj-|ant-)?[A-Za-z0-9_\-]{20,}"#,      // OpenAI / Anthropic / DeepSeek keys
@@ -53,9 +70,15 @@ enum CommitMessagePrompt {
             #"\bglpat-[A-Za-z0-9_\-]{20,}\b"#,                  // GitLab tokens
             #"\bxox[abpr]-[A-Za-z0-9\-]{10,}\b"#,               // Slack tokens
             #"\bshp(?:at|ca|pa|ss)_[a-fA-F0-9]{32}\b"#,         // Shopify tokens
+            #"\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}\b"#,  // Stripe keys
+            #"\bAIza[0-9A-Za-z_\-]{35}\b"#,                      // Google API keys
+            #"\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}"#,   // JWTs
         ]
-        return patterns.reduce(text) { result, pattern in
+        let masked = patterns.reduce(text) { result, pattern in
             result.replacingOccurrences(of: pattern, with: "[REDACTED]", options: .regularExpression)
+        }
+        return assigned.reduce(masked) { result, rule in
+            result.replacingOccurrences(of: rule.0, with: rule.1, options: .regularExpression)
         }
     }
 

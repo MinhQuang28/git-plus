@@ -10,7 +10,11 @@ final class AICommitMessageTests: XCTestCase {
                      ".env", "config/.env.production", "certs/server.pem", "keys/id_ed25519", "node_modules/x/index.js"] {
             XCTAssertTrue(CommitMessagePrompt.isExcluded(path), path)
         }
-        for path in ["src/app.ts", "README.md", "Sources/build-app.swift", "docs/environment.md", "lib/key-store.swift"] {
+        for path in ["config/secrets.yml", "aws-credentials.json", "infra/prod.tfvars", ".envrc", "config/master.key", "db.password"] {
+            XCTAssertTrue(CommitMessagePrompt.isExcluded(path), path)
+        }
+        for path in ["src/app.ts", "README.md", "Sources/build-app.swift", "docs/environment.md", "lib/key-store.swift",
+                     "Sources/secret-store.swift", "src/password-reset.tsx"] {
             XCTAssertFalse(CommitMessagePrompt.isExcluded(path), path)
         }
     }
@@ -23,6 +27,21 @@ final class AICommitMessageTests: XCTestCase {
         XCTAssertFalse(redacted.contains("ghp_aaa"))
         XCTAssertEqual(redacted.components(separatedBy: "[REDACTED]").count - 1, 3)
         XCTAssertEqual(CommitMessagePrompt.redactSecrets("+let skip = 1"), "+let skip = 1")
+    }
+
+    func testRedactsValuesAssignedToSecretLikeKeys() {
+        let cases: [(String, String)] = [
+            ("+DB_PASSWORD=hunter2hunter2", "+DB_PASSWORD=[REDACTED]"),
+            ("+  password: s3cr3t-value", "+  password: [REDACTED]"),
+            (#"+  "client_secret": "abcd1234efgh","#, #"+  "client_secret": "[REDACTED]","#),
+            (#"+const API_KEY = 'q1w2e3r4t5y6'"#, #"+const API_KEY = '[REDACTED]'"#),
+            ("+DATABASE_URL=postgres://app:Sup3rS3cret@db:5432/x", "+DATABASE_URL=postgres://app:[REDACTED]@db:5432/x"),
+            ("+Authorization: Bearer abcdefghijklmnop1234", "+Authorization: Bearer [REDACTED]"),
+        ]
+        for (input, expected) in cases { XCTAssertEqual(CommitMessagePrompt.redactSecrets(input), expected, input) }
+        // Ordinary code stays readable.
+        XCTAssertEqual(CommitMessagePrompt.redactSecrets("+func reset(user: User) {"), "+func reset(user: User) {")
+        XCTAssertEqual(CommitMessagePrompt.redactSecrets("+let token = try await fetchToken()"), "+let token = try await fetchToken()")
     }
 
     func testUserMessageListsOmittedFilesAndFallsBackToStats() {
