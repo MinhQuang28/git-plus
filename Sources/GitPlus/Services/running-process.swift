@@ -17,7 +17,7 @@ final class RunningProcess: @unchecked Sendable {
     private var continuation: CheckedContinuation<Output, Error>?
     private var cancelled = false
 
-    init(_ tool: String, _ args: [String], in directory: URL?) {
+    init(_ tool: String, _ args: [String], in directory: URL?, environment extra: [String: String] = [:]) {
         if tool.hasPrefix("/") {
             process.executableURL = URL(fileURLWithPath: tool)
             process.arguments = args
@@ -25,7 +25,7 @@ final class RunningProcess: @unchecked Sendable {
             process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
             process.arguments = [tool] + args
         }
-        process.environment = ProcessRunner.environment
+        process.environment = ProcessRunner.environment.merging(extra) { _, new in new }
         if let directory { process.currentDirectoryURL = directory }
         process.standardOutput = out
         process.standardError = err

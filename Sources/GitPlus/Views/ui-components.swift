@@ -291,6 +291,7 @@ struct OpenInMenu: View {
             }
         } label: {
             Label(editor.map { "Open in \($0.name)" } ?? "Open in…", systemImage: "arrow.up.forward.app")
+                .labelStyle(.titleAndIcon)
         } primaryAction: {
             if let editor { editor.open(repo.url) } else { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
         }

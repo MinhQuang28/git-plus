@@ -66,11 +66,19 @@ cat > "$OUT/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Sign with the stable local identity if present (run tools/setup-signing-cert.sh once).
+# Sign with the stable local identity, creating it on first build (tools/setup-signing-cert.sh).
 # A fixed cert keeps the designated requirement constant across rebuilds, so macOS privacy
-# grants (e.g. access to repositories in ~/Desktop or ~/Documents) survive every rebuild.
-SIGN_HASH="$(security find-identity "$HOME/Library/Keychains/login.keychain-db" 2>/dev/null \
-    | awk '/Git Plus Local Signing/ {print $2; exit}')"
+# grants (repositories in ~/Desktop, ~/Documents) and Keychain access to the saved AI API key
+# survive every rebuild instead of prompting again.
+find_identity() {
+    security find-identity "$HOME/Library/Keychains/login.keychain-db" 2>/dev/null \
+        | awk '/Git Plus Local Signing/ {print $2; exit}'
+}
+SIGN_HASH="$(find_identity)"
+if [ -z "$SIGN_HASH" ]; then
+    ./tools/setup-signing-cert.sh || echo "warning: could not create the signing identity" >&2
+    SIGN_HASH="$(find_identity)"
+fi
 if [ -n "$SIGN_HASH" ]; then
     echo "==> signing with stable identity ($SIGN_HASH)"
     codesign --force --sign "$SIGN_HASH" --timestamp=none "$OUT" >/dev/null 2>&1
@@ -83,7 +91,11 @@ echo "==> done: $(cd "$(dirname "$OUT")" && pwd)/${APP_NAME}.app"
 
 if [ "${1:-}" = "--install" ]; then
     osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
+    # Wait for the old copy to exit, otherwise relaunching below fails (error -600).
+    for _ in $(seq 1 50); do pgrep -qf "/Applications/${APP_NAME}.app/Contents/MacOS/" || break; sleep 0.1; done
     rm -rf "/Applications/${APP_NAME}.app"
     cp -R "$OUT" /Applications/
     echo "==> installed: /Applications/${APP_NAME}.app"
+    open "/Applications/${APP_NAME}.app" || { sleep 1; open "/Applications/${APP_NAME}.app"; }
+    echo "==> launched"
 fi

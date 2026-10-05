@@ -26,6 +26,9 @@ final class WorkspaceStore {
     /// Unfinished commit messages per repository; survive tab/repo switches and relaunches.
     var commitDrafts: [UUID: CommitDraft] = CommitDraft.load() { didSet { CommitDraft.save(commitDrafts) } }
 
+    /// Running "Write commit message with AI" requests per repository (cancellable from the commit box).
+    var messageTasks: [UUID: Task<Void, Never>] = [:]
+
     /// Set by "Go to Commit Message" (⌘L); the repository's commit box focuses its summary and clears it.
     var focusCommitMessage: UUID?
 

@@ -98,6 +98,9 @@ struct RepoContextMenu: View {
             Divider()
             Button("Ungrouped") { store.move(repoIDs: [repo.id], to: nil) }
         }
+        Toggle("Allow AI Commit Messages", isOn: Binding(
+            get: { !AISettings.isDisabled(repoPath: repo.path) },
+            set: { AISettings.setDisabled(!$0, repoPath: repo.path) }))
         Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
         Button("Open in Terminal") {
             NSWorkspace.shared.open([repo.url], withApplicationAt: URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app"), configuration: .init())

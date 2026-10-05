@@ -28,29 +28,39 @@ struct ChangesPaneView: View {
     var body: some View {
         // Filtered once per render (each is a pass over possibly thousands of files).
         let conflicted = self.conflicted, staged = self.staged, unstaged = self.unstaged
+        let sharedFolder = FileNameLabel.sharedFolder(tree.all)
         VStack(spacing: 0) {
             if !tree.isEmpty { filterField }
+            if let sharedFolder {
+                // Every change lives in one folder: say it once instead of under each row.
+                Label(sharedFolder, systemImage: "folder")
+                    .appFont(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, Spacing.m).padding(.top, Spacing.xs)
+                    .help("All changed files are in \(sharedFolder)/")
+            }
             List(selection: $selection) {
                 if !conflicted.isEmpty {
                     Section {
-                        ForEach(conflicted) { row($0) }
+                        ForEach(conflicted) { row($0, showsFolder: sharedFolder == nil) }
                     } header: {
                         SectionHeader(title: "Conflicts", count: conflicted.count) {
                             IconButton(symbol: "wand.and.stars", help: "Resolve conflicts…") { RepoActions.post(.showConflicts) }
                         }
                     }
                 }
-                Section {
-                    ForEach(staged) { row($0) }
-                } header: {
-                    SectionHeader(title: "Staged", count: staged.count) {
-                        if !tree.staged.isEmpty {
+                // Hidden while nothing is staged (or the filter hides every staged file).
+                if !staged.isEmpty {
+                    Section {
+                        ForEach(staged) { row($0, showsFolder: sharedFolder == nil) }
+                    } header: {
+                        SectionHeader(title: "Staged", count: staged.count) {
                             IconButton(symbol: "minus.circle", help: "Unstage all") { run("unstage") { try await $0.unstageAll() } }
                         }
                     }
                 }
                 Section {
-                    ForEach(unstaged) { row($0) }
+                    ForEach(unstaged) { row($0, showsFolder: sharedFolder == nil) }
                 } header: {
                     SectionHeader(title: "Changes", count: unstaged.count) {
                         if !tree.unstaged.isEmpty {
@@ -139,8 +149,8 @@ struct ChangesPaneView: View {
 
     private func files(_ ids: Set<ChangedFile.ID>) -> [ChangedFile] { tree.all.filter { ids.contains($0.id) } }
 
-    private func row(_ file: ChangedFile) -> some View {
-        WorkingFileRow(file: file) { toggle([file]) }.tag(file.id)
+    private func row(_ file: ChangedFile, showsFolder: Bool) -> some View {
+        WorkingFileRow(file: file, showsFolder: showsFolder) { toggle([file]) }.tag(file.id)
     }
 
     /// Stage ↔ unstage (double-click, Space or the row button). Conflicted files open the resolver.
@@ -223,6 +233,7 @@ struct ChangesPaneView: View {
 /// File row: type icon, name over dimmed folder, stage/unstage button on hover, status letter.
 struct WorkingFileRow: View {
     let file: ChangedFile
+    var showsFolder = true
     let toggle: () -> Void
     @State private var hovering = false
     /// `.increased` while the row is selected — the stage button shows then too, not only on hover.
@@ -231,7 +242,7 @@ struct WorkingFileRow: View {
     var body: some View {
         let showButton = hovering || prominence == .increased
         HStack(spacing: 6) {
-            FileNameLabel(file: file)
+            FileNameLabel(file: file, showsFolder: showsFolder)
             Spacer(minLength: 4)
             if file.additions + file.deletions > 0 {
                 Text("+\(file.additions) −\(file.deletions)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)

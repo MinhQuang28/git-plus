@@ -89,6 +89,7 @@ struct FileDiffView: View {
         }
         .background(Theme.contextLine)
         .environment(\.diffFontSize, fontSize)
+        .environment(\.diffAllAdded, file.status == "A" || file.status == "?")
         .overlay(alignment: .bottom) {
             if canStage && !selected.isEmpty {
                 LineSelectionBar(count: selected.count, area: file.area,

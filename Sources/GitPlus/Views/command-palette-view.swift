@@ -153,6 +153,10 @@ struct CommandPaletteView: View {
                 RepoActions.show(.changes)
                 store.focusCommitMessage = id
             },
+            Item(id: "cmd:aimessage", title: "Write Commit Message with AI", symbol: "sparkles", shortcut: "⌥⌘G") {
+                RepoActions.show(.changes)
+                store.generateCommitMessage(id)
+            },
             Item(id: "cmd:stageall", title: "Stage All", symbol: "plus.circle", shortcut: "⌥⌘S") {
                 Task { await store.perform(id, "stage", success: "Staged all changes") { try await $0.stageAll() } }
             },

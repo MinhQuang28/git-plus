@@ -3,11 +3,22 @@ import SwiftUI
 private let gutterWidth: CGFloat = 46
 
 struct DiffFontSizeKey: EnvironmentKey { static let defaultValue: CGFloat = 12.5 }
+/// The whole diff is additions (new file): a wall of green adds nothing, so lines keep the plain
+/// background and only the gutter stays green.
+struct DiffAllAddedKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
     var diffFontSize: CGFloat {
         get { self[DiffFontSizeKey.self] }
         set { self[DiffFontSizeKey.self] = newValue }
     }
+    var diffAllAdded: Bool {
+        get { self[DiffAllAddedKey.self] }
+        set { self[DiffAllAddedKey.self] = newValue }
+    }
+}
+
+private func lineBackground(_ kind: DiffLineKind?, allAdded: Bool) -> Color {
+    allAdded && kind == .added ? Theme.contextLine : lineColor(kind)
 }
 
 private func lineColor(_ kind: DiffLineKind?) -> Color {
@@ -80,6 +91,7 @@ struct HunkRow<Actions: View>: View {
 /// Unified row: old no. | new no. | marker | text. Change lines can be selected for line staging.
 struct DiffLineView: View {
     @Environment(\.diffFontSize) private var fontSize
+    @Environment(\.diffAllAdded) private var allAdded
     let line: DiffLine
     let styled: AttributedString?
     var isSelected = false
@@ -99,7 +111,7 @@ struct DiffLineView: View {
             content(line, styled)
         }
         .font(.system(size: fontSize, design: .monospaced))
-        .background(lineColor(line.kind))
+        .background(lineBackground(line.kind, allAdded: allAdded))
         .overlay { if isSelected { Color.accentColor.opacity(0.16).allowsHitTesting(false) } }
         .overlay(alignment: .leading) { if isSelected { Rectangle().fill(Color.accentColor).frame(width: 3) } }
     }
@@ -108,6 +120,7 @@ struct DiffLineView: View {
 /// Side-by-side row: old version left, new version right.
 struct SplitDiffRowView: View {
     @Environment(\.diffFontSize) private var fontSize
+    @Environment(\.diffAllAdded) private var allAdded
     let row: SplitDiffRow
     let styles: [Int: AttributedString]
 
@@ -131,6 +144,6 @@ struct SplitDiffRowView: View {
             if let line { content(line, styles[line.id]) } else { Spacer(minLength: 0) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(lineColor(line?.kind))
+        .background(lineBackground(line?.kind, allAdded: allAdded))
     }
 }

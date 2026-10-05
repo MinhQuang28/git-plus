@@ -23,6 +23,9 @@ struct ChangesCommands: Commands {
             Button("Commit & Push") { run { RepoActions.show(.changes); store.commit($0, push: true) } }
                 .keyboardShortcut(.return, modifiers: [.command, .shift])
                 .disabled(!(repoID.map(store.canCommit) ?? false) || !hasRemote)
+            Button("Write Commit Message with AI") { run { RepoActions.show(.changes); store.generateCommitMessage($0) } }
+                .keyboardShortcut("g", modifiers: [.command, .option])
+                .disabled(repoID == nil || (tree?.isEmpty ?? true) || repoID.map(store.isWritingMessage) == true)
             Button("Go to Commit Message") { run { RepoActions.show(.changes); store.focusCommitMessage = $0 } }
                 .keyboardShortcut("l")
                 .disabled(repoID == nil)

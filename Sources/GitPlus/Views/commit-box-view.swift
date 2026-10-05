@@ -12,6 +12,7 @@ struct CommitBoxView: View {
     @AppStorage(CommitDefaults.descriptionKey) private var defaultDetails = ""
     @State private var recentAuthors: [Author] = []
     @FocusState private var summaryFocused: Bool
+    @FocusState private var detailsFocused: Bool
     @Environment(\.uiTextScale) private var scale
 
     /// Lives in the store, so switching tab or repository doesn't throw the message away.
@@ -46,10 +47,13 @@ struct CommitBoxView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             HStack(spacing: Spacing.xs) {
-                TextField("Summary (required)", text: binding(\.summary))
+                TextField(store.isWritingMessage(repo.id) ? "Writing message…" : "Summary (required)", text: binding(\.summary))
                     .textFieldStyle(.plain)
                     .focused($summaryFocused)
                     .appFont(.body, weight: .medium)
+                if !AISettings.isDisabled(repoPath: repo.path) {
+                    AICommitMessageButton(repoID: repo.id, isAvailable: !amend && hasChanges, amend: amend)
+                }
                 Menu {
                     ForEach(Self.prefixes, id: \.self) { p in
                         Button("\(p):") { applyPrefix(p) }
@@ -67,13 +71,16 @@ struct CommitBoxView: View {
             ZStack(alignment: .topLeading) {
                 TextEditor(text: binding(\.details))
                     .appFont(.callout)
+                    .focused($detailsFocused)
                     .scrollContentBackground(.hidden)
                     .padding(Spacing.xs)
                 if details.isEmpty {
                     Text("Description").foregroundStyle(.tertiary).padding(.horizontal, 9).padding(.vertical, Spacing.xs).allowsHitTesting(false)
                 }
             }
-            .frame(height: 64 * scale)
+            // One line until it's used, so the file list keeps the space.
+            .frame(height: (detailsFocused || !details.isEmpty ? 64 : 30) * scale)
+            .animation(.easeOut(duration: 0.15), value: detailsFocused)
             .background(field)
             HStack(spacing: Spacing.s) {
                 Toggle("Amend", isOn: binding(\.amend)).toggleStyle(.checkbox).appFont(.callout)
@@ -215,33 +222,4 @@ struct CommitBoxView: View {
     }
 
     private func commit(push: Bool) { store.commit(repo.id, push: push) }
-}
-
-/// "Stash changes" sheet.
-struct StashSheet: View {
-    @Environment(WorkspaceStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
-    let repo: RepoEntry
-    @State private var message = ""
-    @State private var includeUntracked = true
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Stash Changes").appFont(.headline)
-            TextField("Message (optional)", text: $message).textFieldStyle(.roundedBorder)
-            Toggle("Include untracked files", isOn: $includeUntracked)
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Stash") {
-                    let m = message, u = includeUntracked
-                    dismiss()
-                    Task { await store.perform(repo.id, "stash", success: "Changes stashed") { try await $0.stash(message: m, includeUntracked: u) } }
-                }
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(20)
-        .frame(width: 380)
-    }
 }

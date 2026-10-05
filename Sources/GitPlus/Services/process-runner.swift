@@ -34,17 +34,19 @@ enum ProcessRunner {
     }()
 
     /// Runs `tool args…` in `directory`; returns stdout or throws `CommandError` on non-zero exit.
-    static func run(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0]) async throws -> String {
-        let data = try await runData(tool, args, in: directory, okCodes: okCodes)
+    static func run(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0],
+                    environment: [String: String] = [:]) async throws -> String {
+        let data = try await runData(tool, args, in: directory, okCodes: okCodes, environment: environment)
         return String(decoding: data, as: UTF8.self)
     }
 
     /// `okCodes`: exit statuses treated as success (e.g. `git diff --no-index` exits 1 when files differ).
     /// Non-blocking (pipe readability + termination handlers, no parked threads) and cancellable:
-    /// cancelling the calling task terminates the child process.
-    static func runData(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0]) async throws -> Data {
+    /// cancelling the calling task terminates the child process. `environment` adds/overrides variables.
+    static func runData(_ tool: String, _ args: [String], in directory: URL? = nil, okCodes: Set<Int32> = [0],
+                        environment: [String: String] = [:]) async throws -> Data {
         try Task.checkCancellation()
-        let run = RunningProcess(tool, args, in: directory)
+        let run = RunningProcess(tool, args, in: directory, environment: environment)
         let result = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in run.start(continuation) }
         } onCancel: {

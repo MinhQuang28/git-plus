@@ -1,11 +1,16 @@
 import SwiftUI
 
 struct SettingsView: View {
+    /// Shared key so other views can open Settings on a specific tab (e.g. ✨ before AI is set up).
+    static let tabKey = "settingsTab"
+    @AppStorage(SettingsView.tabKey) private var tab = "general"
+
     var body: some View {
-        TabView {
-            GeneralSettingsView().tabItem { Label("General", systemImage: "gearshape") }
-            CommitSettingsView().tabItem { Label("Commit", systemImage: "text.badge.checkmark") }
-            AccountsSettingsView().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
+        TabView(selection: $tab) {
+            GeneralSettingsView().tabItem { Label("General", systemImage: "gearshape") }.tag("general")
+            CommitSettingsView().tabItem { Label("Commit", systemImage: "text.badge.checkmark") }.tag("commit")
+            AISettingsView().tabItem { Label("AI", systemImage: "sparkles") }.tag("ai")
+            AccountsSettingsView().tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag("accounts")
         }
         .frame(width: 540, height: 480)
     }

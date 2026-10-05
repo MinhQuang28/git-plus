@@ -7,11 +7,12 @@ struct ChangedFileList: View {
     var contextMenu: ((ChangedFile) -> AnyView)? = nil
 
     var body: some View {
+        let shared = FileNameLabel.sharedFolder(files)
         VStack(spacing: 0) {
-            header
+            header(shared)
             Rectangle().fill(Theme.separator).frame(height: 1)
             List(files, selection: $selection) { file in
-                row(file)
+                row(file, showsFolder: shared == nil)
                     .listRowSeparator(.visible)
                     .contextMenu { contextMenu?(file) }
             }
@@ -19,10 +20,13 @@ struct ChangedFileList: View {
         }
     }
 
-    private var header: some View {
-        HStack {
+    private func header(_ shared: String?) -> some View {
+        HStack(spacing: Spacing.xs) {
             Spacer()
             Text("\(files.count) changed file\(files.count == 1 ? "" : "s")").appFont(.callout)
+            if let shared {
+                Text("in \(shared)").appFont(.callout).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+            }
             Spacer()
         }
         .padding(.horizontal, 10)
@@ -30,9 +34,9 @@ struct ChangedFileList: View {
         .background(Theme.headerBackground)
     }
 
-    private func row(_ file: ChangedFile) -> some View {
+    private func row(_ file: ChangedFile, showsFolder: Bool) -> some View {
         HStack(spacing: 6) {
-            FileNameLabel(file: file)
+            FileNameLabel(file: file, showsFolder: showsFolder)
             Spacer(minLength: 4)
             if file.additions + file.deletions > 0 {
                 Text("+\(file.additions) −\(file.deletions)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
@@ -46,8 +50,19 @@ struct ChangedFileList: View {
 }
 
 /// File-type icon beside the file name, with its dimmed folder on the line below; deleted files are struck through.
+/// Names truncate in the middle so the distinguishing tail (dates, extension) stays visible.
 struct FileNameLabel: View {
     let file: ChangedFile
+    /// Off when every file in the list shares one folder (it is shown once above the list instead).
+    var showsFolder = true
+
+    /// The folder all `files` live in, when there is exactly one (and it isn't the repository root).
+    static func sharedFolder(_ files: [ChangedFile]) -> String? {
+        guard let first = files.first else { return nil }
+        let dir = (first.path as NSString).deletingLastPathComponent
+        guard !dir.isEmpty, files.allSatisfy({ ($0.path as NSString).deletingLastPathComponent == dir }) else { return nil }
+        return dir
+    }
 
     var body: some View {
         let dir = (file.path as NSString).deletingLastPathComponent
@@ -58,7 +73,8 @@ struct FileNameLabel: View {
                     .strikethrough(file.status == "D")
                     .foregroundStyle(file.status == "D" ? .secondary : .primary)
                     .lineLimit(1)
-                if !dir.isEmpty {
+                    .truncationMode(.middle)
+                if showsFolder, !dir.isEmpty {
                     Text(dir).appFont(size: 11).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
                 }
             }

@@ -183,7 +183,7 @@ struct ReviewsToolbarButton: View {
     @State private var isPresented = false
 
     var body: some View {
-        Button { isPresented.toggle() } label: { Label(provider.reviewNoun, systemImage: "arrow.triangle.pull") }
+        Button { isPresented.toggle() } label: { Label(provider.reviewNoun, systemImage: "arrow.triangle.pull").labelStyle(.titleAndIcon) }
             .help("\(provider.reviewNoun) via \(provider.cliName ?? "")")
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
                 PullRequestsView(repo: repo, provider: provider) { isPresented = false }

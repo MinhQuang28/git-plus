@@ -111,3 +111,32 @@ struct OperationBannerView: View {
         Task { await store.perform(repo.id, label, success: success, op) }
     }
 }
+
+/// "Stash changes" sheet.
+struct StashSheet: View {
+    @Environment(WorkspaceStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let repo: RepoEntry
+    @State private var message = ""
+    @State private var includeUntracked = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Stash Changes").appFont(.headline)
+            TextField("Message (optional)", text: $message).textFieldStyle(.roundedBorder)
+            Toggle("Include untracked files", isOn: $includeUntracked)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Stash") {
+                    let m = message, u = includeUntracked
+                    dismiss()
+                    Task { await store.perform(repo.id, "stash", success: "Changes stashed") { try await $0.stash(message: m, includeUntracked: u) } }
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 380)
+    }
+}
