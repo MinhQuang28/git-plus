@@ -4,10 +4,16 @@ struct CommandError: LocalizedError {
     let command: String
     let status: Int32
     let stderr: String
+    /// Some git commands (stash apply, merge) report conflicts on stdout and leave stderr empty.
+    var stdout = ""
 
     var errorDescription: String? {
         let msg = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        return msg.isEmpty ? "`\(command)` exited with status \(status)" : msg
+        if !msg.isEmpty { return msg }
+        let lines = stdout.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let important = lines.filter { line in ["CONFLICT", "error", "fatal", "warning"].contains { line.hasPrefix($0) } }
+        let shown = important.isEmpty ? Array(lines.suffix(3)) : important
+        return shown.isEmpty ? "`\(command)` exited with status \(status)" : shown.joined(separator: "\n")
     }
 }
 
@@ -55,7 +61,8 @@ enum ProcessRunner {
         try Task.checkCancellation()
         guard okCodes.contains(result.status) else {
             throw CommandError(command: ([tool] + args).joined(separator: " "), status: result.status,
-                               stderr: String(decoding: result.stderr, as: UTF8.self))
+                               stderr: String(decoding: result.stderr, as: UTF8.self),
+                               stdout: String(decoding: result.stdout.suffix(4000), as: UTF8.self))
         }
         return result.stdout
     }

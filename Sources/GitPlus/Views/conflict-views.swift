@@ -514,7 +514,7 @@ struct MergeSheet: View {
                     Button(actionTitle) { start() }
                         .buttonStyle(.glassProminent)
                         .keyboardShortcut(.defaultAction)
-                        .disabled(selected == nil || store.busy.contains(repo.id))
+                        .disabled(selected == nil || store.busy.contains(repo.id) || (!isChecking && preview != nil && incoming == 0))
                 }
             }
             .padding(Spacing.l)

@@ -354,13 +354,19 @@ final class WorkspaceStore {
     /// `mode == nil` → the default from Settings.
     func pull(_ ids: [UUID], mode: PullMode? = nil) async {
         let resolved = mode ?? defaultPullMode
-        await runEach(ids, label: resolved == .fastForward ? "pull" : "pull (\(resolved.title.lowercased()))", done: "Pulled") {
+        await runEach(ids, label: resolved == .fastForward ? "pull" : "pull (\(resolved.title.lowercased()))", done: "Pulled",
+                      unchanged: "Already up to date") {
             try await $0.pull(resolved)
         }
     }
 
-    private func runEach(_ ids: [UUID], label: String, done: String, _ op: @escaping @Sendable (GitService) async throws -> Void) async {
+    /// `unchanged`: toast shown instead of `done` when no repository's HEAD moved (a pull with nothing new
+    /// exits 0 and would otherwise read "Pulled").
+    private func runEach(_ ids: [UUID], label: String, done: String, unchanged: String? = nil,
+                         _ op: @escaping @Sendable (GitService) async throws -> Void) async {
         let targets = ids.compactMap(repo).filter { !busy.contains($0.id) }
+        var headsBefore: [UUID: String?] = [:]
+        if unchanged != nil { for repo in targets { headsBefore[repo.id] = await GitService(repo: repo.url).headHash() } }
         targets.forEach { busyLabels[$0.id] = label }
         var activityIDs: [UUID: UUID] = [:]
         for repo in targets { activityIDs[repo.id] = beginActivity(repo.name, label) }
@@ -382,7 +388,12 @@ final class WorkspaceStore {
             failure = Failure(title: "\(label.prefix(1).uppercased() + label.dropFirst()) failed", detail: detail,
                               repoID: failures.count == 1 ? failures[0].0 : nil, hint: GitErrorHint.classify(detail))
         } else if !targets.isEmpty {
-            showToast(targets.count == 1 ? "\(done) \(targets[0].name)" : "\(done) \(targets.count) repositories")
+            var moved = unchanged == nil
+            if let unchanged, !moved {
+                for repo in targets where await GitService(repo: repo.url).headHash() != headsBefore[repo.id] { moved = true; break }
+                if !moved { showToast(targets.count == 1 ? "\(unchanged) — \(targets[0].name)" : "\(unchanged) — all \(targets.count) repositories") }
+            }
+            if moved { showToast(targets.count == 1 ? "\(done) \(targets[0].name)" : "\(done) \(targets.count) repositories") }
         }
     }
 

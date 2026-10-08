@@ -44,6 +44,8 @@ final class StashConflictTests: XCTestCase {
         } catch let error as CommandError {
             XCTAssertFalse(error.stderr.lowercased().contains("try without --index"), "the plain apply must have run")
             XCTAssertEqual(error.status, 1, "conflicts: git reports them on stdout and exits 1")
+            XCTAssertTrue(error.localizedDescription.contains("CONFLICT"), "stdout-only reports must still reach the user")
+            XCTAssertEqual(GitErrorHint.classify(error.localizedDescription), .conflicts)
         }
         let status = try await git.status()
         XCTAssertEqual(status.conflicts, 1)

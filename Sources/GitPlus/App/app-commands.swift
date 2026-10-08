@@ -55,6 +55,20 @@ enum RepoActions {
     }
 
     static func undoLastCommit(_ store: WorkspaceStore, _ id: UUID) {
+        // Undoing a pushed commit only removes it locally: the branch falls behind its upstream and the
+        // next pull brings the commit straight back. Say so before doing it (GitHub Desktop refuses outright).
+        if let status = store.statuses[id], status.upstream != nil, status.ahead == 0 {
+            let alert = NSAlert()
+            alert.messageText = "The last commit is already pushed"
+            alert.informativeText = "Undoing it here only removes it from your Mac; \(status.upstream ?? "the remote") still has it, "
+                + "and pulling would bring it back. To remove it from the remote too, undo and then force push.\n\n"
+                + "Prefer “Revert Changes in Commit” from the History tab to undo it with a new commit."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Undo Locally")
+            alert.addButton(withTitle: "Cancel")
+            alert.buttons.first?.hasDestructiveAction = true
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+        }
         Task { await store.perform(id, "undo commit", success: "Undid last commit — its changes are staged") { try await $0.undoLastCommit() } }
     }
 }
