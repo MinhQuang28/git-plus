@@ -96,6 +96,6 @@ if [ "${1:-}" = "--install" ]; then
     rm -rf "/Applications/${APP_NAME}.app"
     cp -R "$OUT" /Applications/
     echo "==> installed: /Applications/${APP_NAME}.app"
-    open "/Applications/${APP_NAME}.app" || { sleep 1; open "/Applications/${APP_NAME}.app"; }
+    open "/Applications/${APP_NAME}.app" 2>/dev/null || { sleep 1; open "/Applications/${APP_NAME}.app"; }
     echo "==> launched"
 fi
