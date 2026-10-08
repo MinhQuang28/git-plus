@@ -23,8 +23,16 @@ extension GitService {
         _ = try await git(args)
     }
 
+    /// `--index` also restores what was staged. When that can't be reinstated (the index already changed
+    /// those files) git applies nothing and says "Try without --index" — so the plain apply is used then.
+    /// Conflicts still throw (exit 1); the changes are in the tree and the stash is kept.
     func applyStash(_ entry: StashEntry, pop: Bool) async throws {
-        _ = try await git(["stash", pop ? "pop" : "apply", "--index", entry.ref])
+        let command = pop ? "pop" : "apply"
+        do {
+            _ = try await git(["stash", command, "--index", entry.ref])
+        } catch let error as CommandError where error.stderr.lowercased().contains("try without --index") {
+            _ = try await git(["stash", command, entry.ref])
+        }
     }
 
     func dropStash(_ entry: StashEntry) async throws { _ = try await git(["stash", "drop", entry.ref]) }

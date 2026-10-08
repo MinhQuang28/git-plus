@@ -138,6 +138,12 @@ struct GitService: Sendable {
 
     /// Pushes the current branch; sets upstream on first push. `force` uses `--force-with-lease`,
     /// which refuses to overwrite remote commits you haven't fetched.
+    /// Commits on HEAD that the upstream doesn't have; nil when the branch has no upstream.
+    func unpushedCount() async -> Int? {
+        guard let out = try? await git(["rev-list", "--count", "@{upstream}..HEAD"]) else { return nil }
+        return Int(out.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
     func push(setUpstream: Bool, force: Bool = false) async throws {
         var args = ["push"]
         if force { args.append("--force-with-lease") }

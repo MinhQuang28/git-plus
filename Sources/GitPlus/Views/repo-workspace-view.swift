@@ -117,8 +117,8 @@ struct RepoWorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showMerge)) { _ in showMerge = true }
         .onReceive(NotificationCenter.default.publisher(for: .showRemotes)) { _ in showRemotes = true }
         .onChange(of: status?.conflicts ?? 0) { old, new in
-            // Like GitHub Desktop: conflicts appearing after a merge / rebase open the resolve dialog.
-            if old == 0, new > 0, status?.operation != nil { showConflicts = true }
+            // Like GitHub Desktop: conflicts appearing (merge, rebase, stash apply, …) open the resolve dialog.
+            if old == 0, new > 0 { showConflicts = true }
         }
         .sheet(isPresented: $showConflicts) { ConflictsSheet(repo: repo) { showConflicts = false } }
         .sheet(isPresented: $showMerge) { MergeSheet(repo: repo) { showMerge = false } }

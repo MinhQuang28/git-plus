@@ -79,15 +79,18 @@ struct ConflictsSheet: View {
         case .rebase: "Resolve conflicts before rebasing \(sides.theirs) onto \(sides.ours)"
         case .cherryPick: "Resolve conflicts before cherry-picking"
         case .revert: "Resolve conflicts before reverting"
-        case nil: "No operation in progress"
+        case nil: loaded && files.isEmpty && resolved.isEmpty ? "No conflicts" : "Resolve conflicts between \(sides.ours) and \(sides.theirs)"
         }
     }
+
+    /// No merge/rebase to continue: the resolved files just need a commit.
+    private var needsCommit: Bool { operation == nil && (!files.isEmpty || !resolved.isEmpty) }
 
     private var remaining: Int { files.count }
 
     private var subtitle: String {
-        guard operation != nil else { return "There is nothing to resolve." }
-        if remaining == 0 { return "All conflicts resolved. Continue to finish." }
+        if operation == nil && !needsCommit { return "There is nothing to resolve." }
+        if remaining == 0 { return operation == nil ? "All conflicts resolved. Commit the changes to finish." : "All conflicts resolved. Continue to finish." }
         return "\(remaining) conflicted file\(remaining == 1 ? "" : "s") · choose which branch's version to keep, or resolve block by block."
     }
 
@@ -187,6 +190,15 @@ struct ConflictsSheet: View {
                 .buttonStyle(.glassProminent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(remaining > 0)
+            } else if needsCommit {
+                Button("Commit Changes") {
+                    dismiss()
+                    RepoActions.show(.changes)
+                    store.focusCommitMessage = repo.id
+                }
+                .buttonStyle(.glassProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(remaining > 0)
             }
         }
         .buttonStyle(.glass)
@@ -218,10 +230,8 @@ struct ConflictsSheet: View {
             return counts
         }.value
         resolved.removeAll { path in files.contains { $0.path == path } }
-        if let operation {
-            let names = await git.conflictSides(operation)
-            sides = ConflictSides(ours: names.ours, theirs: names.theirs)
-        }
+        let names = await git.conflictSides(operation)
+        sides = ConflictSides(ours: names.ours, theirs: names.theirs)
         loaded = true
     }
 }
@@ -406,8 +416,18 @@ struct ConflictFileView: View {
         let file = self.file
         Task {
             if await store.perform(repo.id, "resolve \(file.path)", success: "Resolved \(file.path)", { try await $0.resolve(file, side: side) }) {
-                onDone()
+                finished()
             }
+        }
+    }
+
+    /// Without a merge/rebase to continue (stash conflicts), the last resolution still needs a commit.
+    private func finished() {
+        onDone()
+        guard let status = store.statuses[repo.id], status.operation == nil, status.conflicts == 0 else { return }
+        store.showToast("All conflicts resolved — commit the changes to finish", actionTitle: "Commit") {
+            RepoActions.show(.changes)
+            store.focusCommitMessage = repo.id
         }
     }
 
@@ -418,7 +438,7 @@ struct ConflictFileView: View {
             let ok = await store.perform(repo.id, "resolve \(file.path)", success: "Resolved \(file.path)") {
                 if let text { try await $0.saveResolution(file, text: text) } else { try await $0.markResolved(file) }
             }
-            if ok { onDone() }
+            if ok { finished() }
         }
     }
 
@@ -434,10 +454,8 @@ struct ConflictFileView: View {
                 self.error = "Could not read the file as text: \(error.localizedDescription)"
             }
         }
-        if let op = store.statuses[repo.id]?.operation {
-            let n = await git.conflictSides(op)
-            loadedSides = ConflictSides(ours: n.ours, theirs: n.theirs)
-        }
+        let n = await git.conflictSides(store.statuses[repo.id]?.operation)
+        loadedSides = ConflictSides(ours: n.ours, theirs: n.theirs)
     }
 }
 

@@ -141,13 +141,19 @@ extension GitService {
 
     /// Branch / commit names for both sides of the operation in progress, as GitHub Desktop shows them.
     /// During a rebase "ours" is the branch being rebased onto and "theirs" is your commit being replayed.
-    func conflictSides(_ op: GitOperation) async -> (ours: String, theirs: String) {
+    /// `nil` operation: unmerged files without a merge/rebase in progress come from `stash apply/pop`
+    /// (git keeps the stash on conflict), so "theirs" is the stash.
+    func conflictSides(_ op: GitOperation?) async -> (ours: String, theirs: String) {
         let dir = ((try? await git(["rev-parse", "--absolute-git-dir"])) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         func read(_ name: String) -> String? {
             (try? String(contentsOfFile: (dir as NSString).appendingPathComponent(name), encoding: .utf8))?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
         let current = ((try? await git(["rev-parse", "--abbrev-ref", "HEAD"])) ?? "HEAD").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let op else {
+            let hasStash = !((try? await stashes()) ?? []).isEmpty
+            return (current, hasStash ? "stash" : "incoming changes")
+        }
         switch op {
         case .merge:
             let mergeHead = read("MERGE_HEAD")?.split(separator: "\n").first.map(String.init)

@@ -37,9 +37,9 @@ struct StashDetailView: View {
                 Image(systemName: "tray.full").foregroundStyle(.secondary)
                 Text(entry.ref).appFont(size: 12, design: .monospaced).foregroundStyle(.secondary)
                 Spacer()
-                Button("Apply") { run("apply stash", "Stash applied") { try await $0.applyStash(entry, pop: false) } }
+                Button("Apply") { apply(pop: false) }
                     .help("Apply and keep the stash")
-                Button("Pop") { run("pop stash", "Stash applied and removed") { try await $0.applyStash(entry, pop: true) } }
+                Button("Pop") { apply(pop: true) }
                     .buttonStyle(.glassProminent)
                     .help("Apply and remove the stash")
                 Button("Drop…", role: .destructive) { confirmDrop = true }
@@ -58,6 +58,21 @@ struct StashDetailView: View {
 
     private func run(_ label: String, _ success: String, _ op: @escaping @Sendable (GitService) async throws -> Void) {
         Task { await store.perform(repo.id, label, success: success, op) }
+    }
+
+    /// Conflicts make git exit 1, but the changes are in the tree (and the stash is kept): guide to the
+    /// resolver instead of showing "failed". The resolve dialog opens itself when conflicts appear.
+    private func apply(pop: Bool) {
+        let entry = self.entry
+        Task {
+            let ok = await store.perform(repo.id, pop ? "pop stash" : "apply stash", success: pop ? "Stash applied and removed" : "Stash applied") {
+                try await $0.applyStash(entry, pop: pop)
+            }
+            guard !ok, let n = store.statuses[repo.id]?.conflicts, n > 0 else { return }
+            store.failure = nil
+            store.showToast("Stash applied with \(n) conflict\(n == 1 ? "" : "s") — resolve them, then commit. The stash was kept.", isError: true)
+            RepoActions.show(.changes)
+        }
     }
 }
 

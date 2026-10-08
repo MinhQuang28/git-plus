@@ -305,8 +305,22 @@ final class WorkspaceStore {
     }
 
     func push(_ id: UUID, force: Bool = false) async {
+        guard let repo = repo(id) else { return }
         let needsUpstream = statuses[id]?.upstream == nil
         let branch = statuses[id]?.branch ?? "branch"
+        // `git push` with nothing new exits 0 ("Everything up-to-date"); a "Pushed" toast would then be a lie.
+        // Usually the user staged or resolved changes but hasn't committed yet — point them there.
+        if !force, !needsUpstream, await GitService(repo: repo.url).unpushedCount() == 0 {
+            if (statuses[id]?.changedFiles ?? 0) > 0 {
+                showToast("Nothing to push yet — commit your changes first", actionTitle: "Commit") { [weak self] in
+                    RepoActions.show(.changes)
+                    self?.focusCommitMessage = id
+                }
+            } else {
+                showToast("Already up to date — nothing to push")
+            }
+            return
+        }
         let label = force ? "force push" : "push"
         await perform(id, label, success: needsUpstream ? "Published \(branch)" : force ? "Force-pushed \(branch)" : "Pushed \(branch)") {
             try await $0.push(setUpstream: needsUpstream, force: force)
