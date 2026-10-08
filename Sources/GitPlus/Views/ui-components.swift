@@ -290,14 +290,30 @@ struct OpenInMenu: View {
                 NSPasteboard.general.setString(repo.path, forType: .string)
             }
         } label: {
-            Label(editor.map { "Open in \($0.name)" } ?? "Open in…", systemImage: "arrow.up.forward.app")
-                .labelStyle(.titleAndIcon)
+            // Just the editor's own app icon; the name is in the tooltip and for VoiceOver.
+            Label {
+                Text(editor.map { "Open in \($0.name)" } ?? "Open in…")
+            } icon: {
+                if let icon = editor?.icon {
+                    Image(nsImage: Self.toolbarIcon(icon)).renderingMode(.original)
+                } else {
+                    Image(systemName: "arrow.up.forward.app")
+                }
+            }
+            .labelStyle(.iconOnly)
         } primaryAction: {
             if let editor { editor.open(repo.url) } else { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
         }
         .menuStyle(.button)
         .fixedSize()
-        .help("Open the repository (⌘⇧E editor · ⌃` terminal · ⌘⇧R Finder)")
+        .help("\(editor.map { "Open in \($0.name)" } ?? "Open in…") (⌘⇧E editor · ⌃` terminal · ⌘⇧R Finder)")
+    }
+
+    /// App icons are 32 pt+ by default; toolbar glyphs are ~18 pt.
+    private static func toolbarIcon(_ icon: NSImage) -> NSImage {
+        let copy = icon.copy() as? NSImage ?? icon
+        copy.size = NSSize(width: 18, height: 18)
+        return copy
     }
 
     private func appLabel(_ app: ExternalApp) -> some View {
