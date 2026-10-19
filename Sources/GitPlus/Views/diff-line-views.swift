@@ -95,6 +95,8 @@ struct DiffLineView: View {
     let line: DiffLine
     let styled: AttributedString?
     var isSelected = false
+    /// Part of a drag selection for copying (see `diffTextSelection`).
+    var isCopySelected = false
     /// Non-nil when the line can be selected (click the gutter).
     var onSelect: (() -> Void)? = nil
 
@@ -109,6 +111,7 @@ struct DiffLineView: View {
             .onTapGesture { onSelect?() }
             .help(onSelect == nil ? "" : "Click to select line · ⇧-click to select a range")
             content(line, styled)
+                .overlay { if isCopySelected { DiffCopyHighlight() } }
         }
         .font(.system(size: fontSize, design: .monospaced))
         .background(lineBackground(line.kind, allAdded: allAdded))
@@ -123,25 +126,31 @@ struct SplitDiffRowView: View {
     @Environment(\.diffAllAdded) private var allAdded
     let row: SplitDiffRow
     let styles: [Int: AttributedString]
+    /// Column of this row that is part of a drag selection for copying.
+    var copySide: DiffCopySelection.Side? = nil
 
     var body: some View {
         if let full = row.full {
             HunkRow(line: full, gutters: 1) { EmptyView() }
         } else {
             HStack(alignment: .top, spacing: 0) {
-                side(row.left, number: row.left?.oldNumber)
+                side(row.left, number: row.left?.oldNumber, copied: copySide == .left)
                 Rectangle().fill(Theme.separator).frame(width: 1)
-                side(row.right, number: row.right?.newNumber)
+                side(row.right, number: row.right?.newNumber, copied: copySide == .right)
             }
             .font(.system(size: fontSize, design: .monospaced))
         }
     }
 
-    private func side(_ line: DiffLine?, number: Int?) -> some View {
+    private func side(_ line: DiffLine?, number: Int?, copied: Bool) -> some View {
         HStack(alignment: .top, spacing: 0) {
             gutter(number, line?.kind)
             Text(line.map { marker($0.kind) } ?? " ").frame(width: 20).padding(.vertical, 1.5)
-            if let line { content(line, styles[line.id]) } else { Spacer(minLength: 0) }
+            if let line {
+                content(line, styles[line.id]).overlay { if copied { DiffCopyHighlight() } }
+            } else {
+                Spacer(minLength: 0)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(lineBackground(line?.kind, allAdded: allAdded))

@@ -63,6 +63,9 @@ struct FileDiffView: View {
     @State private var isLoading = true
     @State private var selected = Set<Int>()
     @State private var anchor: Int?
+    /// Rows dragged over for copying (separate from the line-staging selection above).
+    @State private var copySelection: DiffCopySelection?
+    @State private var rowFrames = DiffRowFrames()
 
     /// Hunk / line staging is available for modified files in the Changes tab
     /// (not while whitespace is ignored: the shown diff would not apply).
@@ -98,6 +101,9 @@ struct FileDiffView: View {
         }
         .background { currentHunkShortcuts }
         .task(id: "\(fullContext)|\(syntaxHighlight)|\(ignoreWhitespace)|\(reloadKey)") { await load() }
+        // Row positions change with the layout; stale ones would point drags at the wrong rows.
+        .onChange(of: mode) { rowFrames.reset(); copySelection = nil }
+        .onChange(of: fontSize) { rowFrames.reset() }
     }
 
     /// ⌥⌘↩ stages (or unstages) the current change, ⌥⌘⌫ discards it — ⌥⌘↑/↓ pick which one.
@@ -133,27 +139,35 @@ struct FileDiffView: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if mode == .split {
                             ForEach(rows) { row in
-                                if let hunk = row.full, hunk.kind == .hunk {
-                                    HunkRow(line: hunk, gutters: 1) { hunkActions(hunk.id) }
-                                } else {
-                                    SplitDiffRowView(row: row, styles: styles)
+                                Group {
+                                    if let hunk = row.full, hunk.kind == .hunk {
+                                        HunkRow(line: hunk, gutters: 1) { hunkActions(hunk.id) }
+                                    } else {
+                                        SplitDiffRowView(row: row, styles: styles,
+                                                         copySide: copySelection.flatMap { $0.range.contains(row.id) ? $0.side : nil })
+                                    }
                                 }
+                                .diffSelectableRow(row.id, frames: rowFrames)
                             }
                         } else {
                             ForEach(lines) { line in
-                                if line.kind == .hunk || line.kind == .meta {
-                                    HunkRow(line: line, gutters: 2) { if line.kind == .hunk { hunkActions(line.id) } }
-                                } else {
-                                    DiffLineView(line: line, styled: styles[line.id], isSelected: selected.contains(line.id),
-                                                 onSelect: canStage && line.kind != .context ? { select(line.id) } : nil)
+                                Group {
+                                    if line.kind == .hunk || line.kind == .meta {
+                                        HunkRow(line: line, gutters: 2) { if line.kind == .hunk { hunkActions(line.id) } }
+                                    } else {
+                                        DiffLineView(line: line, styled: styles[line.id], isSelected: selected.contains(line.id),
+                                                     isCopySelected: copySelection?.range.contains(line.id) == true,
+                                                     onSelect: canStage && line.kind != .context ? { select(line.id) } : nil)
+                                    }
                                 }
+                                .diffSelectableRow(line.id, frames: rowFrames)
                             }
                         }
                         if truncated {
                             Text("Diff truncated — too many lines.").foregroundStyle(.secondary).padding()
                         }
                     }
-                    .textSelection(.enabled)
+                    .diffTextSelection($copySelection, frames: rowFrames, isSplit: mode == .split, allIDs: allIDs, copyText: copyText)
                     .padding(.bottom, selected.isEmpty ? 0 : 60)
                 }
                 .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, scrolls in
@@ -170,6 +184,17 @@ struct FileDiffView: View {
                 }
             }
         }
+    }
+
+    private var allIDs: ClosedRange<Int>? {
+        let ids = mode == .split ? rows.map(\.id) : lines.map(\.id)
+        guard let first = ids.first, let last = ids.last else { return nil }
+        return first...last
+    }
+
+    private func copyText(_ selection: DiffCopySelection) -> String {
+        mode == .split ? DiffCopySelection.text(rows, in: selection.range, side: selection.side)
+            : DiffCopySelection.text(lines, in: selection.range)
     }
 
     /// ±1 → previous / next hunk.
@@ -225,6 +250,7 @@ struct FileDiffView: View {
             // Reloads (activation, unrelated revisions) often return the same text: skip re-highlighting.
             if text == raw, renderedSyntax == syntax, error == nil { return }
             let prepared = try await Self.prepare(text, path: file.path, syntax: syntax)
+            if text != raw { copySelection = nil; rowFrames.reset() }
             raw = text
             renderedSyntax = syntax
             lines = prepared.0.lines
