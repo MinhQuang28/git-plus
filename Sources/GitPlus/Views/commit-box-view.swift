@@ -126,7 +126,7 @@ struct CommitBoxView: View {
                 .fixedSize()
                 .help("\(pushTitle) (⌘⇧↩)")
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(.fluentAccent)
             .controlSize(.large)
             .disabled(!canCommit)
         }

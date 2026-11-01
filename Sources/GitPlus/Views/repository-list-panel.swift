@@ -56,7 +56,7 @@ struct RepositoryListPanel: View {
                         .onKeyPress(.upArrow) { moveHighlight(-1) }
                 }
                 .padding(.horizontal, 10).padding(.vertical, 6)
-                .glassEffect(.regular, in: .capsule)
+                .fluentTextField()
                 Menu {
                     Button("Add Repositories…") { addRepositories() }
                     Button("New Group") {
@@ -67,7 +67,7 @@ struct RepositoryListPanel: View {
                     Button("Auto-Group by Remote") { Task { await store.autoGroupByRemote() } }
                 } label: { Text("Add") }
                 .menuStyle(.button)
-                .buttonStyle(.glass)
+                .buttonStyle(.fluent)
                 .fixedSize()
             }
             .padding(10)
@@ -128,7 +128,7 @@ struct RepositoryListPanel: View {
                 // Folder icon sets groups apart from the repository rows below them.
                 Image(systemName: groupID == nil ? "tray.fill" : "folder.fill")
                     .appFont(size: 13)
-                    .foregroundStyle(groupID == nil ? Color.secondary : Color.accentColor)
+                    .foregroundStyle(groupID == nil ? Color.secondary : Fluent.accent)
                     .frame(width: 18)
                 Text(name).appFont(size: 13, weight: .bold)
                 Text("\(count)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
@@ -182,12 +182,10 @@ struct RepositoryListPanel: View {
                 SyncBadge(status: status)
             }
         }
-        .padding(.horizontal, 14).frame(minHeight: 32)
-        .background(isCurrent ? Color.accentColor.opacity(0.22) : isHighlighted ? Color.accentColor.opacity(0.12) : .clear)
-        .overlay { if isHighlighted { RoundedRectangle(cornerRadius: 4).stroke(Color.accentColor, lineWidth: 1).padding(.horizontal, 4) } }
+        .padding(.horizontal, 10).frame(minHeight: 32)
         .contentShape(Rectangle())
+        .fluentListItem(selected: isCurrent, highlighted: isHighlighted)
         .onTapGesture { pick(.repo(repo.id)) }
-        .hoverHighlight()
         .id(pinned ? "pinned:\(repo.id)" : repo.id.uuidString)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isCurrent ? [.isButton, .isSelected] : .isButton)

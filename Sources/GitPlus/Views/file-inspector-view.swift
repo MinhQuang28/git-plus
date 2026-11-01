@@ -147,7 +147,7 @@ struct BlamePane: View {
                     if line.isUncommitted {
                         Text("Not committed yet").foregroundStyle(Theme.modified)
                     } else {
-                        Text(line.shortHash).foregroundStyle(Color.accentColor)
+                        Text(line.shortHash).foregroundStyle(Fluent.accent)
                         Text(line.author).lineLimit(1)
                         Spacer(minLength: 2)
                         Text(RelativeTime.string(line.date)).foregroundStyle(.secondary).lineLimit(1)
@@ -178,7 +178,7 @@ struct BlamePane: View {
                 .padding(.vertical, 1.5)
         }
         .font(.system(size: fontSize, design: .monospaced))
-        .background(isFocused ? Color.accentColor.opacity(0.14) : block % 2 == 0 ? Theme.contextLine : Theme.gutter)
+        .background(isFocused ? Fluent.accent.opacity(0.14) : block % 2 == 0 ? Theme.contextLine : Theme.gutter)
         .overlay(alignment: .top) { if startsBlock { Rectangle().fill(Theme.separator).frame(height: 0.5) } }
     }
 }

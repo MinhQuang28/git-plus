@@ -6,12 +6,15 @@ import SwiftUI
 struct ResizableColumn<Content: View>: View {
     @AppStorage private var width: Double
     let range: ClosedRange<Double>
+    /// Off when the next pane draws its own edge (the rounded content layer).
+    let divider: Bool
     @ViewBuilder let content: Content
     @State private var dragStart: Double?
 
-    init(_ storageKey: String, initial: Double, range: ClosedRange<Double>, @ViewBuilder content: () -> Content) {
+    init(_ storageKey: String, initial: Double, range: ClosedRange<Double>, divider: Bool = true, @ViewBuilder content: () -> Content) {
         _width = AppStorage(wrappedValue: initial, storageKey)
         self.range = range
+        self.divider = divider
         self.content = content()
     }
 
@@ -19,7 +22,7 @@ struct ResizableColumn<Content: View>: View {
         HStack(spacing: 0) {
             content.frame(width: min(max(width, range.lowerBound), range.upperBound))
             Rectangle()
-                .fill(Theme.separator)
+                .fill(divider ? Theme.separator : .clear)
                 .frame(width: 1)
                 .overlay {
                     Color.clear
@@ -70,7 +73,7 @@ struct IconButton: View {
             Image(systemName: symbol)
                 .appFont(size: 12, weight: .medium)
                 .frame(width: 22 * scale, height: 22 * scale)
-                .background(RoundedRectangle(cornerRadius: 5).fill(hovering ? Theme.barHover : .clear))
+                .background(RoundedRectangle(cornerRadius: Fluent.controlRadius).fill(hovering ? Fluent.subtleHover : .clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -109,21 +112,20 @@ struct ToastView: View {
 
     var body: some View {
         HStack(spacing: Spacing.s) {
-            Image(systemName: toast.isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                .foregroundStyle(toast.isError ? Theme.deleted : Theme.added)
-            Text(toast.message).appFont(.body, weight: .medium).lineLimit(2)
+            FluentSeverityIcon(severity: toast.isError ? .error : .success)
+            Text(toast.message).appFont(.body).lineLimit(2)
             if let title = toast.actionTitle, let action = toast.action {
                 Divider().frame(height: 16)
                 Button(title) {
                     store.dismissToast()
                     action()
                 }
-                .buttonStyle(.borderless)
-                .fontWeight(.semibold)
+                .buttonStyle(.fluent)
+                .controlSize(.small)
             }
         }
         .padding(.horizontal, Spacing.l).padding(.vertical, 10)
-        .glassEffect(.regular, in: .capsule)
+        .fluentFlyout()
         .padding(.bottom, 20)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
@@ -138,9 +140,9 @@ struct FailureBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
-                Image(systemName: "exclamationmark.octagon.fill").foregroundStyle(Theme.deleted)
+                FluentSeverityIcon(severity: .error)
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
-                    Text(failure.title).appFont(.headline)
+                    Text(failure.title).appFont(.body, weight: .semibold)
                     Text(failure.hint?.explanation ?? firstLine).appFont(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -153,7 +155,7 @@ struct FailureBanner: View {
                 }
                 .frame(maxHeight: 140)
                 .padding(Spacing.s)
-                .background(RoundedRectangle(cornerRadius: Radius.s).fill(Theme.headerBackground))
+                .fluentCard(radius: Fluent.controlRadius)
             }
             HStack(spacing: Spacing.s) {
                 Button(showDetail ? "Hide Details" : "Show Details") { showDetail.toggle() }
@@ -165,11 +167,12 @@ struct FailureBanner: View {
                 fixes
             }
             .controlSize(.small)
-            .buttonStyle(.glass)
+            .buttonStyle(.fluent)
         }
         .padding(Spacing.m)
         .frame(maxWidth: 560)
-        .glassEffect(.regular.tint(Theme.deleted.opacity(0.18)), in: .rect(cornerRadius: Radius.l))
+        .fluentInfoBar(.error)
+        .shadow(color: Fluent.shadow, radius: 16, y: 8)
         .padding(.bottom, 20)
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
@@ -207,7 +210,7 @@ struct FailureBanner: View {
             store.failure = nil
             Task { await action() }
         }
-        if prominent { button.buttonStyle(.glassProminent) } else { button.buttonStyle(.glass) }
+        button.buttonStyle(prominent ? .fluentAccent : .fluent)
     }
 }
 
@@ -239,7 +242,8 @@ struct KeyboardHint: View {
             .appFont(.caption, design: .monospaced)
             .foregroundStyle(.secondary)
             .padding(.horizontal, Spacing.xs + 1).padding(.vertical, 1)
-            .background(RoundedRectangle(cornerRadius: 4).stroke(Theme.separator))
+            .background(RoundedRectangle(cornerRadius: Fluent.controlRadius).fill(Fluent.controlFill))
+            .overlay(RoundedRectangle(cornerRadius: Fluent.controlRadius).strokeBorder(Fluent.controlStrokeBottom))
     }
 }
 
@@ -254,9 +258,9 @@ struct OptionChip: View {
             Label(title, systemImage: symbol)
                 .appFont(size: 11, weight: .medium)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(isOn ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
-                .overlay(Capsule().stroke(isOn ? Color.accentColor.opacity(0.6) : Theme.separator))
-                .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                .background(RoundedRectangle(cornerRadius: Fluent.controlRadius).fill(isOn ? Fluent.accent : Fluent.controlFill))
+                .overlay(RoundedRectangle(cornerRadius: Fluent.controlRadius).strokeBorder(isOn ? .clear : Fluent.controlStroke))
+                .foregroundStyle(isOn ? Fluent.onAccent : .secondary)
         }
         .buttonStyle(.plain)
     }

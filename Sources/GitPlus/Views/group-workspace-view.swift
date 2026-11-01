@@ -17,31 +17,27 @@ struct GroupWorkspaceView: View {
     private var revisionKey: String { repos.map { "\($0.id)\(store.revisions[$0.id] ?? 0)" }.joined() }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
-                SwitcherColumn {
-                    if tab == 1 { activityList } else { repoList }
+        VStack(spacing: 0) {
+            commandBar
+            HStack(spacing: 0) {
+                ResizableColumn("width.leftPane", initial: 320, range: 260...520, divider: false) {
+                    SwitcherColumn {
+                        if tab == 1 { activityList } else { repoList }
+                    }
                 }
+                main.frame(maxWidth: .infinity, maxHeight: .infinity).fluentContentLayer()
             }
-            main.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .navigationTitle(title)
-        .toolbar(removing: .title)
-        .toolbar { groupToolbar }
         .task(id: revisionKey) { await loadActivity() }
     }
 
-    @ToolbarContentBuilder private var groupToolbar: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Picker("View", selection: $tab) {
-                Text("Repositories").tag(0)
-                Text("Activity").tag(1)
-            }
-            .pickerStyle(.segmented)
-        }
-        ToolbarItemGroup(placement: .primaryAction) {
-            let ids = repos.map(\.id)
-            let busy = ids.contains { store.busy.contains($0) }
+    private var commandBar: some View {
+        let ids = repos.map(\.id)
+        let busy = ids.contains { store.busy.contains($0) }
+        return FluentCommandBar {
+            FluentSelectorBar(selection: $tab, items: [(0, "Repositories"), (1, "Activity")])
+        } trailing: {
             Button { Task { await store.fetch(ids) } } label: {
                 Label("Fetch All", systemImage: "arrow.triangle.2.circlepath").labelStyle(.titleAndIcon)
             }
@@ -51,10 +47,8 @@ struct GroupWorkspaceView: View {
             }
             .disabled(ids.isEmpty || busy)
             .help("Pull every repository in this group (Settings → Sync sets fast-forward / rebase / merge)")
-        }
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) {
-            AddToGroupMenu(groupID: groupID) { Label("Add Repository", systemImage: "plus") }
+            Divider().frame(height: 20).padding(.horizontal, Spacing.xs)
+            AddToGroupMenu(groupID: groupID) { Label("Add Repository", systemImage: "plus").labelStyle(.titleAndIcon) }
                 .help("Add a repository to \(title)")
         }
     }
@@ -68,7 +62,8 @@ struct GroupWorkspaceView: View {
             .buttonStyle(.plain)
             .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
         }
-        .listStyle(.inset)
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .overlay {
             if repos.isEmpty {
                 ContentUnavailableView {
@@ -81,14 +76,11 @@ struct GroupWorkspaceView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            // Rounded glass button, consistent with the rest of the Liquid Glass UI.
             AddToGroupMenu(groupID: groupID) {
                 Label("Add Repository", systemImage: "plus").frame(maxWidth: .infinity)
             }
             .menuStyle(.button)
-            .buttonStyle(.glass)
-            .buttonBorderShape(.capsule)
-            .controlSize(.large)
+            .buttonStyle(.fluent)
             .menuIndicator(.hidden)
             .padding(Spacing.s)
         }
@@ -99,6 +91,7 @@ struct GroupWorkspaceView: View {
             CommitListRow(commit: item.commit, repoName: item.repoName).listRowSeparator(.visible)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .overlay { if isLoading && activity.isEmpty { ProgressView() } }
     }
 

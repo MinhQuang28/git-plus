@@ -16,33 +16,38 @@ struct ContentView: View {
     }
 
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .environment(switcher)
-            .overlay(alignment: .bottom) {
-                VStack(spacing: Spacing.s) {
-                    if let failure = store.failure { FailureBanner(failure: failure).id(failure.id) }
-                    if let toast = store.toast { ToastView(toast: toast).id(toast.id) }
-                }
+        VStack(spacing: 0) {
+            FluentTitleBar()
+            content
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.container, edges: .top)
+        .background(Fluent.mica)
+        .environment(switcher)
+        .overlay(alignment: .bottom) {
+            VStack(spacing: Spacing.s) {
+                if let failure = store.failure { FailureBanner(failure: failure).id(failure.id) }
+                if let toast = store.toast { ToastView(toast: toast).id(toast.id) }
             }
-            .overlay {
-                if showPalette {
-                    ZStack(alignment: .top) {
-                        Color.black.opacity(0.12).ignoresSafeArea().onTapGesture { showPalette = false }
-                        CommandPaletteView { showPalette = false }.padding(.top, 80)
-                    }
-                    .transition(.opacity)
+        }
+        .overlay {
+            if showPalette {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.12).ignoresSafeArea().onTapGesture { showPalette = false }
+                    CommandPaletteView { showPalette = false }.padding(.top, 80)
                 }
+                .transition(.opacity)
             }
-            .animation(.spring(duration: 0.3), value: store.toast)
-            .animation(.spring(duration: 0.3), value: store.failure)
-            .animation(.easeOut(duration: 0.12), value: showPalette)
-            .task { await store.refreshStatus() }
-            .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showPalette.toggle() }
-            .onReceive(NotificationCenter.default.publisher(for: .showClone)) { _ in showClone = true }
-            .onReceive(NotificationCenter.default.publisher(for: .showActivity)) { _ in showActivity = true }
-            .sheet(isPresented: $showClone) { CloneSheet { showClone = false } }
-            .sheet(isPresented: $showActivity) { ActivityView { showActivity = false } }
+        }
+        .animation(.spring(duration: 0.3), value: store.toast)
+        .animation(.spring(duration: 0.3), value: store.failure)
+        .animation(.easeOut(duration: 0.12), value: showPalette)
+        .task { await store.refreshStatus() }
+        .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showPalette.toggle() }
+        .onReceive(NotificationCenter.default.publisher(for: .showClone)) { _ in showClone = true }
+        .onReceive(NotificationCenter.default.publisher(for: .showActivity)) { _ in showActivity = true }
+        .sheet(isPresented: $showClone) { CloneSheet { showClone = false } }
+        .sheet(isPresented: $showActivity) { ActivityView { showActivity = false } }
     }
 
     @ViewBuilder private var content: some View {
@@ -59,11 +64,14 @@ struct ContentView: View {
     }
 
     private var placeholder: some View {
-        HStack(spacing: 0) {
-            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
-                SwitcherColumn(forceExpanded: true) { EmptyView() }
+        VStack(spacing: 0) {
+            FluentCommandBar { EmptyView() } trailing: { EmptyView() }
+            HStack(spacing: 0) {
+                ResizableColumn("width.leftPane", initial: 320, range: 260...520, divider: false) {
+                    SwitcherColumn(forceExpanded: true) { EmptyView() }
+                }
+                WelcomeView().frame(maxWidth: .infinity, maxHeight: .infinity).fluentContentLayer()
             }
-            WelcomeView().frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -136,7 +144,6 @@ struct WelcomeView: View {
             .padding(Spacing.l)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: Radius.l))
+        .buttonStyle(.fluent)
     }
 }

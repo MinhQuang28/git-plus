@@ -52,9 +52,9 @@ struct GroupDashboardView: View {
                             }
                             .appFont(.callout, weight: .medium)
                             .padding(.horizontal, 10).padding(.vertical, Spacing.xs)
-                            .background(Capsule().fill(filter == f ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
-                            .overlay(Capsule().stroke(filter == f ? Color.accentColor.opacity(0.6) : Theme.separator))
-                            .foregroundStyle(filter == f ? Color.accentColor : .primary)
+                            .background(RoundedRectangle(cornerRadius: Fluent.controlRadius).fill(filter == f ? Fluent.accent : Fluent.controlFill))
+                            .overlay(RoundedRectangle(cornerRadius: Fluent.controlRadius).strokeBorder(filter == f ? .clear : Fluent.controlStroke))
+                            .foregroundStyle(filter == f ? Fluent.onAccent : .primary)
                         }
                         .buttonStyle(.plain)
                     }
@@ -144,8 +144,7 @@ struct RepoCard: View {
             }
         }
         .padding(Spacing.m)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: Radius.l))
-        .overlay(RoundedRectangle(cornerRadius: Radius.l).stroke(hovering ? Color.accentColor.opacity(0.5) : .clear))
+        .fluentCard(hovering: hovering)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .help(repo.path)
@@ -163,7 +162,7 @@ struct Sparkline: View {
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(Array(values.enumerated()), id: \.offset) { _, v in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(v == 0 ? Theme.separator : Color.accentColor.opacity(0.75))
+                    .fill(v == 0 ? Theme.separator : Fluent.accent.opacity(0.75))
                     .frame(width: 5, height: max(2, 22 * CGFloat(v) / CGFloat(peak)))
             }
         }

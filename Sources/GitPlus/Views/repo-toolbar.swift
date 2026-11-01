@@ -13,35 +13,27 @@ enum RepoTab: Int, CaseIterable {
     }
 }
 
-/// Toolbar for a repository window (rendered as Liquid Glass by the system).
-struct RepoToolbar: ToolbarContent {
+/// Windows 11 command bar for a repository: page selector + branch / sync / reviews / open-in commands.
+struct RepoCommandBar: View {
     let repo: RepoEntry
     let status: RepoStatus?
     @Binding var tab: RepoTab
     let changeCount: Int
     let stashCount: Int
 
-    var body: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Picker("View", selection: $tab) {
-                ForEach(RepoTab.allCases, id: \.self) { t in
-                    Text(label(t)).tag(t)
-                }
-            }
-            .pickerStyle(.segmented)
-            .help("⌘1 Changes · ⌘2 History · ⌘3 Stashes")
-        }
-        ToolbarItem(placement: .primaryAction) {
+    var body: some View {
+        FluentCommandBar {
+            FluentSelectorBar(selection: $tab, items: RepoTab.allCases.map { ($0, label($0)) })
+                .help("⌘1 Changes · ⌘2 History · ⌘3 Stashes")
+        } trailing: {
             BranchToolbarButton(repo: repo, branch: status?.branch ?? "–")
+            SyncToolbarButton(repo: repo, status: status)
+            if let provider = status?.remote?.provider, provider != .other {
+                ReviewsToolbarButton(repo: repo, provider: provider)
+            }
+            Divider().frame(height: 20).padding(.horizontal, Spacing.xs)
+            OpenInMenu(repo: repo)
         }
-        ToolbarItem(placement: .primaryAction) { SyncToolbarButton(repo: repo, status: status) }
-        // Flexible spacer keeps branch + sync in place and pushes reviews and "Open in" to the trailing edge.
-        ToolbarSpacer(.flexible, placement: .primaryAction)
-        if let provider = status?.remote?.provider, provider != .other {
-            ToolbarItem(placement: .primaryAction) { ReviewsToolbarButton(repo: repo, provider: provider) }
-        }
-        ToolbarSpacer(.fixed, placement: .primaryAction)
-        ToolbarItem(placement: .primaryAction) { OpenInMenu(repo: repo) }
     }
 
     private func label(_ t: RepoTab) -> String {

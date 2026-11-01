@@ -14,24 +14,24 @@ struct RepoStatusHeader: View {
         if conflicts > 0 {
             banner(symbol: "exclamationmark.triangle.fill", tint: Theme.conflict,
                    text: "\(conflicts) conflicted file\(conflicts == 1 ? "" : "s")") {
-                Button("Resolve…") { RepoActions.post(.showConflicts) }.buttonStyle(.glassProminent)
+                Button("Resolve…") { RepoActions.post(.showConflicts) }.buttonStyle(.fluentAccent)
             }
         } else if case .diverged(let ahead, let behind) = suggestion {
             banner(symbol: "arrow.up.arrow.down", tint: Theme.modified, text: "Diverged ↑\(ahead) ↓\(behind)",
                    help: "\(ahead) local and \(behind) remote commits. Rebase or merge to combine them.") {
-                Button("Rebase") { Task { await store.pull([repo.id], mode: .rebase) } }.buttonStyle(.glassProminent)
+                Button("Rebase") { Task { await store.pull([repo.id], mode: .rebase) } }.buttonStyle(.fluentAccent)
                 Menu {
                     Button("Merge") { Task { await store.pull([repo.id], mode: .merge) } }
                     Button("Force Push (with Lease)…") { ForcePushConfirmation.run(store, repo.id) }
                 } label: {
                     Label("More ways to combine", systemImage: "ellipsis").labelStyle(.iconOnly)
                 }
-                .menuStyle(.button).buttonStyle(.glass).menuIndicator(.hidden).fixedSize()
+                .menuStyle(.button).buttonStyle(.fluent).menuIndicator(.hidden).fixedSize()
             }
         } else if case .publish = suggestion {
             banner(symbol: "icloud.slash", tint: .secondary, text: "Not published yet",
                    help: "This branch only exists on your Mac.") {
-                Button("Publish") { Task { await store.push(repo.id) } }.buttonStyle(.glassProminent)
+                Button("Publish") { Task { await store.push(repo.id) } }.buttonStyle(.fluentAccent)
             }
         }
     }

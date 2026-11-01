@@ -254,13 +254,13 @@ struct BranchPickerView: View {
     private func row(icon: String, title: String, detail: String?, isHighlighted: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                Image(systemName: icon).frame(width: 16).foregroundStyle(detail == "current" ? Color.accentColor : .secondary)
+                Image(systemName: icon).frame(width: 16).foregroundStyle(detail == "current" ? Fluent.accent : .secondary)
                 Text(title).lineLimit(1).truncationMode(.middle)
                 Spacer()
                 if let detail { Text(detail).appFont(.caption).foregroundStyle(.secondary) }
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(isHighlighted ? Color.accentColor.opacity(0.18) : .clear)
+            .background(isHighlighted ? Fluent.accent.opacity(0.18) : .clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

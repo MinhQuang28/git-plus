@@ -66,8 +66,7 @@ struct CommandPaletteView: View {
             .frame(maxHeight: 380)
         }
         .frame(width: 600)
-        .glassEffect(.regular, in: .rect(cornerRadius: Radius.l))
-        .shadow(color: .black.opacity(0.25), radius: 30, y: 10)
+        .fluentFlyout()
         .accessibilityAddTraits(.isModal)
         .onAppear { focused = true }
         .onChange(of: query) { highlighted = 0 }
@@ -79,7 +78,7 @@ struct CommandPaletteView: View {
 
     private func row(_ item: Item, isHighlighted: Bool) -> some View {
         HStack(spacing: Spacing.m) {
-            Image(systemName: item.symbol).frame(width: 20).foregroundStyle(isHighlighted ? Color.accentColor : .secondary)
+            Image(systemName: item.symbol).frame(width: 20).foregroundStyle(isHighlighted ? Fluent.accent : .secondary)
             VStack(alignment: .leading, spacing: 0) {
                 Text(item.title).lineLimit(1)
                 if !item.subtitle.isEmpty { Text(item.subtitle).appFont(.caption).foregroundStyle(.secondary).lineLimit(1) }
@@ -88,8 +87,7 @@ struct CommandPaletteView: View {
             if let shortcut = item.shortcut { KeyboardHint(keys: shortcut) }
         }
         .padding(.horizontal, Spacing.l).padding(.vertical, Spacing.s)
-        .background(isHighlighted ? Color.accentColor.opacity(0.16) : .clear, in: RoundedRectangle(cornerRadius: Radius.s))
-        .padding(.horizontal, Spacing.xs)
+        .fluentListItem(selected: isHighlighted)
         .contentShape(Rectangle())
     }
 

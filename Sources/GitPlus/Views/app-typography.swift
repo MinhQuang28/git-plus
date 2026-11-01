@@ -50,7 +50,7 @@ enum AppTextStyle {
         }
     }
 
-    var weight: Font.Weight { self == .headline ? .bold : .regular }
+    var weight: Font.Weight { self == .headline ? .semibold : .regular }
 }
 
 private struct AppFontModifier: ViewModifier {

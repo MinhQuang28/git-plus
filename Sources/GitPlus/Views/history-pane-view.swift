@@ -105,6 +105,7 @@ struct HistoryPaneView: View {
             .buttonStyle(.plain)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     private func compareTabs(_ branch: String) -> some View {
@@ -133,8 +134,7 @@ struct HistoryPaneView: View {
                 }
             }
             .padding(.horizontal, 7).padding(.vertical, 4)
-            .background(Capsule().fill(Theme.headerBackground))
-            .overlay(Capsule().stroke(Theme.separator))
+            .fluentTextField()
             OptionChip(title: "All", symbol: "arrow.triangle.branch", isOn: $allBranches)
                 .help("Show commits from all branches")
             OptionChip(title: "Graph", symbol: "point.3.connected.trianglepath.dotted", isOn: $showGraph)
@@ -163,6 +163,7 @@ struct HistoryPaneView: View {
             }
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .contextMenu(forSelectionType: String.self) { hashes in
             if hashes.count == 1, let hash = hashes.first, let commit = commits.first(where: { $0.hash == hash }) {
                 CommitContextMenu(repo: repo, commit: commit,

@@ -32,7 +32,7 @@ struct RewordSheet: View {
                     dismiss()
                     Task { await store.perform(repo.id, "edit message", success: "Updated message of \(c.shortHash)") { try await $0.reword(c, message: text) } }
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.fluentAccent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -138,7 +138,7 @@ struct InteractiveRebaseSheet: View {
                 Spacer()
                 Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction)
                 Button("Start Rebase") { start() }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.fluentAccent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(problem != nil || hasMerges || isLoading || store.busy.contains(repo.id))
             }

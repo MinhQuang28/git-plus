@@ -12,9 +12,10 @@ enum Spacing {
 }
 
 enum Radius {
-    static let s: CGFloat = 6
-    static let m: CGFloat = 10
-    static let l: CGFloat = 14
+    // Windows 11: 4 pt for controls, 8 pt for cards and overlays.
+    static let s: CGFloat = 4
+    static let m: CGFloat = 8
+    static let l: CGFloat = 8
 }
 
 /// GitHub Desktop–style palette; every color adapts to light/dark appearance.
@@ -28,7 +29,7 @@ enum Theme {
     }
 
     static let barBackground = dynamic(light: hex(0xf6f8fa), dark: hex(0x1c2128))
-    static let barHover = Color.primary.opacity(0.07)
+    static let barHover = Fluent.subtleHover
     static let barText = Color.primary
     static let barSecondaryText = Color.secondary
     static let barDivider = dynamic(light: hex(0xd0d7de), dark: hex(0x30363d))
@@ -36,7 +37,6 @@ enum Theme {
     static let banner = dynamic(light: hex(0xfff8c5), dark: hex(0x3b2e0a))
     static let bannerBorder = dynamic(light: hex(0xd4a72c), dark: hex(0x9e6a03))
 
-    // System colors so panes match the native (Liquid Glass) window chrome.
     static let paneBackground = Color(nsColor: .windowBackgroundColor)
     static let headerBackground = Color.primary.opacity(0.045)
     static let separator = Color(nsColor: .separatorColor)

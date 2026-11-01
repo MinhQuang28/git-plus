@@ -44,7 +44,7 @@ struct PullRequestsView: View {
                 } label: {
                     Label("New", systemImage: "plus")
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.fluentAccent)
                 .controlSize(.small)
                 .help("Open the new \(provider == .gitlab ? "merge" : "pull") request form for the current branch in your browser (push it first)")
             }

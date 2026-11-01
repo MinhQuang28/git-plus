@@ -30,7 +30,7 @@ struct RemotesSheet: View {
                                 .appFont(.callout, design: .monospaced)
                             if let edited = editing[remote.name], edited != remote.fetchURL, !edited.isEmpty {
                                 Button("Save") { run("set remote URL", "Updated \(remote.name)") { try await $0.setRemoteURL(remote.name, url: edited) } }
-                                    .buttonStyle(.glassProminent)
+                                    .buttonStyle(.fluentAccent)
                             }
                             Button(role: .destructive) { removing = remote } label: { Image(systemName: "trash") }
                                 .buttonStyle(.borderless)
@@ -128,7 +128,7 @@ struct CloneSheet: View {
                 Spacer()
                 Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction).disabled(isCloning)
                 Button("Clone") { clone() }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.fluentAccent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(remote.trimmingCharacters(in: .whitespaces).isEmpty || name.isEmpty || exists || isCloning)
             }

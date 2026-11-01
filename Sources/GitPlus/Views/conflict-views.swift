@@ -36,7 +36,7 @@ struct ConflictsSheet: View {
             if let blockFile {
                 HStack {
                     Button { self.blockFile = nil } label: { Label("All Conflicts", systemImage: "chevron.left") }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.fluent)
                     Spacer()
                 }
                 .padding(Spacing.m)
@@ -126,7 +126,7 @@ struct ConflictsSheet: View {
             Spacer()
             if file.deletedSide == nil && count == 0 {
                 Button("Mark as Resolved") { run(file, "mark resolved") { try await $0.markResolved(file) } }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.fluentAccent)
             }
             Menu {
                 resolveMenu(file, markers: count)
@@ -187,7 +187,7 @@ struct ConflictsSheet: View {
                 Button("Continue \(operation.title)") {
                     finish("continue \(operation.rawValue)", "\(operation.title) completed") { try await $0.continueOperation(operation) }
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.fluentAccent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(remaining > 0)
             } else if needsCommit {
@@ -196,12 +196,12 @@ struct ConflictsSheet: View {
                     RepoActions.show(.changes)
                     store.focusCommitMessage = repo.id
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.fluentAccent)
                 .keyboardShortcut(.defaultAction)
                 .disabled(remaining > 0)
             }
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.fluent)
         .padding(Spacing.m)
     }
 
@@ -271,7 +271,7 @@ struct ConflictFileView: View {
                 } description: {
                     Text("This file no longer contains conflict markers.")
                 } actions: {
-                    Button("Mark as Resolved") { save(text: nil) }.buttonStyle(.glassProminent)
+                    Button("Mark as Resolved") { save(text: nil) }.buttonStyle(.fluentAccent)
                 }
             } else {
                 ScrollView {
@@ -308,7 +308,7 @@ struct ConflictFileView: View {
                 }
                 .fixedSize()
                 Button("Save & Mark Resolved") { save(text: ConflictResolver.resolve(segments, choices: choices)) }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.fluentAccent)
                     .disabled(choices.count < blocks.count)
                     .help(choices.count < blocks.count ? "Choose a version for every block first" : "Write the file and stage it")
             }
@@ -364,7 +364,7 @@ struct ConflictFileView: View {
                 }
             }
             .controlSize(.small)
-            .buttonStyle(.glass)
+            .buttonStyle(.fluent)
         }
         .padding(Spacing.m)
         .background(RoundedRectangle(cornerRadius: Radius.m).fill(Theme.paneBackground))
@@ -405,9 +405,9 @@ struct ConflictFileView: View {
                  : "\(names.name(deleted)) deleted this file while \(names.name(kept)) modified it. Keep the modified file or the deletion.")
         } actions: {
             HStack {
-                Button("Keep Modified File from \(names.name(kept))") { resolve(kept) }.buttonStyle(.glassProminent)
+                Button("Keep Modified File from \(names.name(kept))") { resolve(kept) }.buttonStyle(.fluentAccent)
                     .disabled(file.conflictCode == "DD")
-                Button("Delete File") { resolve(deleted) }.buttonStyle(.glass)
+                Button("Delete File") { resolve(deleted) }.buttonStyle(.fluent)
             }
         }
     }
@@ -512,7 +512,7 @@ struct MergeSheet: View {
                     Spacer()
                     Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction)
                     Button(actionTitle) { start() }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.fluentAccent)
                         .keyboardShortcut(.defaultAction)
                         .disabled(selected == nil || store.busy.contains(repo.id) || (!isChecking && preview != nil && incoming == 0))
                 }

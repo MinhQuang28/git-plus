@@ -42,7 +42,7 @@ struct HunkActionButton: View {
         Button(role: destructive ? .destructive : nil, action: action) {
             Label(title, systemImage: symbol).appFont(size: 11, weight: .medium)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.fluent)
         .controlSize(.small)
     }
 }
@@ -59,16 +59,16 @@ struct LineSelectionBar: View {
             Text("\(count) line\(count == 1 ? "" : "s") selected").appFont(size: 13, weight: .medium)
             Divider().frame(height: 18)
             if area == .unstaged {
-                Button("Discard", role: .destructive) { apply(.discard) }.buttonStyle(.glass)
-                Button("Stage Lines") { apply(.stage) }.buttonStyle(.glassProminent)
+                Button("Discard", role: .destructive) { apply(.discard) }.buttonStyle(.fluent)
+                Button("Stage Lines") { apply(.stage) }.buttonStyle(.fluentAccent)
             } else {
-                Button("Unstage Lines") { apply(.unstage) }.buttonStyle(.glassProminent)
+                Button("Unstage Lines") { apply(.unstage) }.buttonStyle(.fluentAccent)
             }
             IconButton(symbol: "xmark", help: "Clear selection (Esc)", action: clear)
                 .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
-        .glassEffect(.regular, in: .capsule)
+        .fluentFlyout()
         .padding(.bottom, 14)
     }
 }

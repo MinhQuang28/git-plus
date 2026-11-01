@@ -59,35 +59,17 @@ struct RepoWorkspaceView: View {
     private var tree: WorkingTree { store.trees[repo.id] ?? WorkingTree() }
 
     var body: some View {
-        HStack(spacing: 0) {
-            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
-                SwitcherColumn {
-                    VStack(spacing: 0) {
-                        RepoStatusHeader(repo: repo, status: status)
-                        Group {
-                            switch tab {
-                            case .changes: ChangesPaneView(repo: repo, tree: tree, selection: $selectedChanges)
-                            case .history: HistoryPaneView(repo: repo, remote: status?.remote, selected: $selectedCommits)
-                            case .stashes: StashListView(stashes: stashes, selection: $selectedStash)
-                            }
-                        }
-                        .frame(maxHeight: .infinity)
+        VStack(spacing: 0) {
+            RepoCommandBar(repo: repo, status: status, tab: $tab, changeCount: tree.count, stashCount: stashes.count)
+            columns
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let op = status?.operation {
+                        OperationBannerView(repo: repo, operation: op, conflicts: status?.conflicts ?? 0) { showConflicts = true }
                     }
                 }
-            }
-            main.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if let op = status?.operation {
-                OperationBannerView(repo: repo, operation: op, conflicts: status?.conflicts ?? 0) { showConflicts = true }
-            }
         }
         .environment(\.inspectFile, InspectFileAction(repoID: repo.id) { inspection = $0 })
         .navigationTitle(repo.name)          // window menu / Mission Control only
-        .toolbar(removing: .title)            // the name is already in "Current Repository"
-        .toolbar {
-            RepoToolbar(repo: repo, status: status, tab: $tab, changeCount: tree.count, stashCount: stashes.count)
-        }
         .task(id: "\(revision)|\(activationTick)") { await reloadStashes() }
         .onChange(of: tree) { _, tree in fixSelection(tree) }
         .task(id: autoFetch) {
@@ -126,6 +108,28 @@ struct RepoWorkspaceView: View {
         .branchSwitchDialog(repoID: repo.id)
         .sheet(item: $inspection) { item in
             FileInspectorView(repo: repo, path: item.path, mode: item.mode, remote: status?.remote) { inspection = nil }
+        }
+    }
+
+    /// Left column (Mica) + main area on the rounded content layer.
+    private var columns: some View {
+        HStack(spacing: 0) {
+            ResizableColumn("width.leftPane", initial: 320, range: 260...520, divider: false) {
+                SwitcherColumn {
+                    VStack(spacing: 0) {
+                        RepoStatusHeader(repo: repo, status: status)
+                        Group {
+                            switch tab {
+                            case .changes: ChangesPaneView(repo: repo, tree: tree, selection: $selectedChanges)
+                            case .history: HistoryPaneView(repo: repo, remote: status?.remote, selected: $selectedCommits)
+                            case .stashes: StashListView(stashes: stashes, selection: $selectedStash)
+                            }
+                        }
+                        .frame(maxHeight: .infinity)
+                    }
+                }
+            }
+            main.frame(maxWidth: .infinity, maxHeight: .infinity).fluentContentLayer()
         }
     }
 
@@ -226,19 +230,19 @@ struct MultiSelectionView: View {
             HStack(spacing: Spacing.s) {
                 if !unstaged.isEmpty {
                     Button("Stage \(unstaged.count)") { run("stage") { [unstaged] in try await $0.stage(unstaged) } }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.fluentAccent)
                 }
                 if !staged.isEmpty {
                     Button("Unstage \(staged.count)") { run("unstage") { [staged] in try await $0.unstage(staged) } }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.fluent)
                 }
                 Button("Stash \(files.count)…") {
                     let paths = Array(Set(files.flatMap(\.pathspec)))
                     run("stash", success: "Stashed \(files.count) files") { try await $0.stash(message: "", includeUntracked: true, paths: paths) }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.fluent)
                 Button("Discard…", role: .destructive) { confirmDiscard = true }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.fluent)
                     .disabled(files.contains { $0.area == .conflicted })
             }
         }

@@ -52,7 +52,7 @@ struct RepositorySwitcherHeader: View {
                 Image(systemName: icon)
                     .appFont(size: 17)
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Fluent.accent)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(caption).appFont(size: 11).foregroundStyle(.secondary)

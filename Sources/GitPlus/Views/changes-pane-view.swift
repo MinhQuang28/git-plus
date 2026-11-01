@@ -123,8 +123,7 @@ struct ChangesPaneView: View {
         }
         .appFont(.callout)
         .padding(.horizontal, Spacing.s).padding(.vertical, 5)
-        .background(Capsule().fill(Theme.headerBackground))
-        .overlay(Capsule().stroke(Theme.separator))
+        .fluentTextField()
         .padding(.horizontal, Spacing.s).padding(.top, Spacing.xs)
     }
 

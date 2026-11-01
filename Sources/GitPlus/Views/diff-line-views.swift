@@ -115,8 +115,8 @@ struct DiffLineView: View {
         }
         .font(.system(size: fontSize, design: .monospaced))
         .background(lineBackground(line.kind, allAdded: allAdded))
-        .overlay { if isSelected { Color.accentColor.opacity(0.16).allowsHitTesting(false) } }
-        .overlay(alignment: .leading) { if isSelected { Rectangle().fill(Color.accentColor).frame(width: 3) } }
+        .overlay { if isSelected { Fluent.accent.opacity(0.16).allowsHitTesting(false) } }
+        .overlay(alignment: .leading) { if isSelected { Rectangle().fill(Fluent.accent).frame(width: 3) } }
     }
 }
 

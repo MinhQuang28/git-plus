@@ -15,6 +15,7 @@ struct StashListView: View {
             .listRowSeparator(.visible)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .overlay {
             if stashes.isEmpty {
                 ContentUnavailableView("No stashes", systemImage: "tray",
@@ -40,11 +41,11 @@ struct StashDetailView: View {
                 Button("Apply") { apply(pop: false) }
                     .help("Apply and keep the stash")
                 Button("Pop") { apply(pop: true) }
-                    .buttonStyle(.glassProminent)
+                    .buttonStyle(.fluentAccent)
                     .help("Apply and remove the stash")
                 Button("Drop…", role: .destructive) { confirmDrop = true }
             }
-            .buttonStyle(.glass)
+            .buttonStyle(.fluent)
             .padding(.horizontal, 14).padding(.vertical, 8)
             Rectangle().fill(Theme.separator).frame(height: 1)
             CommitDetailView(repoURL: repo.url, target: GitService.stashTarget(entry))
@@ -102,16 +103,16 @@ struct OperationBannerView: View {
             }
             Button("Abort…", role: .destructive) { confirmAbort = true }
             if conflicts > 0 {
-                Button("Resolve Conflicts…", action: onResolve).buttonStyle(.glassProminent)
+                Button("Resolve Conflicts…", action: onResolve).buttonStyle(.fluentAccent)
             }
             Button("Continue") { run("continue \(operation.rawValue)", "\(operation.title) completed") { try await $0.continueOperation(operation) } }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.fluentAccent)
                 .disabled(conflicts > 0)
                 .opacity(conflicts > 0 ? 0.6 : 1)
         }
-        .buttonStyle(.glass)
+        .buttonStyle(.fluent)
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .glassEffect(.regular.tint(Theme.bannerBorder.opacity(0.35)), in: .rect(cornerRadius: 14))
+        .fluentInfoBar(.warning)
         .padding(.horizontal, 10).padding(.vertical, 8)
         .confirmationDialog("Abort \(operation.title.lowercased())?", isPresented: $confirmAbort) {
             Button("Abort \(operation.title)", role: .destructive) {

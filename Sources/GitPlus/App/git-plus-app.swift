@@ -10,17 +10,19 @@ struct GitPlusApp: App {
         WindowGroup("Git Plus") {
             ContentView()
                 .scaledInterfaceText()
+                .tint(Fluent.accent)
                 .environment(store)
                 .frame(minWidth: 1000, minHeight: 600)
                 .onAppear { appDelegate.store = store }
         }
+        .windowStyle(.hiddenTitleBar)   // Windows 11 chrome: custom title bar + command bar on Mica
         .commands {
             AppCommands(store: store)
             ChangesCommands(store: store)
         }
 
         Settings {
-            SettingsView().scaledInterfaceText()
+            SettingsView().scaledInterfaceText().tint(Fluent.accent)
         }
     }
 }
