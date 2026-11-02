@@ -31,6 +31,7 @@ struct GeneralSettingsView: View {
     var body: some View {
         Form {
             Section("Appearance") {
+                AccentPicker()
                 Picker("Text size", selection: $textScale) {
                     ForEach(UITextScale.allCases) { Text($0.title).tag($0.rawValue) }
                 }

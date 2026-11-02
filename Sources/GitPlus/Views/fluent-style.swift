@@ -14,10 +14,9 @@ enum Fluent {
         return Theme.dynamic(light: ns(light, la), dark: ns(dark, da))
     }
 
-    // Accent (AccentFillColorDefault / TextOnAccentFillColorPrimary).
-    static let accent = c(0x005FB8, dark: 0x60CDFF)
-    static let onAccent = c(0xFFFFFF, dark: 0x000000)
-    static let accentText = c(0x003E92, dark: 0x99EBFF)
+    // Accent: user-selectable (see `AccentSettings`); reading it in a view body tracks changes.
+    static var accent: Color { AccentSettings.shared.choice.color }
+    static var onAccent: Color { AccentSettings.shared.choice.onColor }
 
     // Surfaces.
     static let mica = c(0xF3F3F3, dark: 0x202020)
