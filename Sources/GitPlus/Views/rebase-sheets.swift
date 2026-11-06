@@ -77,7 +77,7 @@ struct InteractiveRebaseSheet: View {
             if isLoading {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if hasMerges {
-                ContentUnavailableView("Merge Commits in Range", systemImage: "arrow.triangle.merge",
+                ContentUnavailableView("Merge commits in range", systemImage: "arrow.triangle.merge",
                                        description: Text("Rewriting history across merge commits would flatten them. Pick a commit after the last merge."))
             } else {
                 List {
@@ -112,8 +112,8 @@ struct InteractiveRebaseSheet: View {
             }
             if s.action == .reword {
                 TextField("New message", text: step.message, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
                     .lineLimit(1...4)
+                    .fluentTextBox()
                     .padding(.leading, 28)
             }
             if s.action.meldsIntoPrevious {

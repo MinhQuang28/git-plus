@@ -61,13 +61,13 @@ struct CommitBoxView: View {
                 } label: {
                     Label("Commit type prefix", systemImage: "tag").labelStyle(.iconOnly)
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.borderlessButton).tint(.secondary)
                 .menuIndicator(.hidden)
                 .fixedSize()
                 .help("Conventional Commit prefix")
             }
             .padding(Spacing.s)
-            .background(field)
+            .background(FluentFieldSurface(isFocused: summaryFocused))
             ZStack(alignment: .topLeading) {
                 TextEditor(text: binding(\.details))
                     .appFont(.callout)
@@ -75,13 +75,13 @@ struct CommitBoxView: View {
                     .scrollContentBackground(.hidden)
                     .padding(Spacing.xs)
                 if details.isEmpty {
-                    Text("Description").foregroundStyle(.tertiary).padding(.horizontal, 9).padding(.vertical, Spacing.xs).allowsHitTesting(false)
+                    Text("Description").foregroundStyle(.secondary).padding(.horizontal, 9).padding(.vertical, Spacing.xs).allowsHitTesting(false)
                 }
             }
             // One line until it's used, so the file list keeps the space.
             .frame(height: (detailsFocused || !details.isEmpty ? 64 : 30) * scale)
-            .animation(.easeOut(duration: 0.15), value: detailsFocused)
-            .background(field)
+            .animation(Motion.safe(.easeOut(duration: 0.15)), value: detailsFocused)
+            .background(FluentFieldSurface(isFocused: detailsFocused))
             HStack(spacing: Spacing.s) {
                 Toggle("Amend", isOn: binding(\.amend)).toggleStyle(.checkbox).appFont(.callout)
                     .help("Amend the last commit")
@@ -93,7 +93,7 @@ struct CommitBoxView: View {
                 } label: {
                     Label("Co-author", systemImage: "person.badge.plus")
                 }
-                .menuStyle(.borderlessButton)
+                .menuStyle(.borderlessButton).tint(.primary)   // the label is text: .secondary falls to 3:1 on Mica
                 .fixedSize()
                 .appFont(.callout)
                 Spacer()
@@ -111,11 +111,11 @@ struct CommitBoxView: View {
                 Button { commit(push: false) } label: {
                     HStack(spacing: Spacing.xs) {
                         if isCommitting { ProgressView().controlSize(.small) }
-                        Text(isCommitting ? AttributedString("Committing…") : buttonTitle).appFont(.body, weight: .semibold)
+                        Text(isCommitting ? "Committing…" : buttonTitle).appFont(.body, weight: .semibold)
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .help(disabledReason ?? "Commit (⌘↩)")
+                .help(disabledReason ?? "\(amend ? "Amend last commit on" : "Commit to") \(branch) (⌘↩)")
                 Menu {
                     Button(pushTitle) { commit(push: true) }
                         .disabled(status?.remote == nil)
@@ -130,7 +130,7 @@ struct CommitBoxView: View {
             .controlSize(.large)
             .disabled(!canCommit)
         }
-        .padding(Spacing.m)
+        .padding(Spacing.pane)
         .task { await loadAuthors() }
         .onAppear(perform: takeFocusRequest)
         .onChange(of: store.focusCommitMessage) { takeFocusRequest() }
@@ -171,16 +171,11 @@ struct CommitBoxView: View {
         status?.upstream == nil ? "Commit & Publish" : amend ? "Commit & Force Push" : "Commit & Push"
     }
 
-    private var field: some View {
-        RoundedRectangle(cornerRadius: Radius.s).fill(Theme.contextLine)
-            .overlay(RoundedRectangle(cornerRadius: Radius.s).stroke(Theme.separator))
-    }
 
-    private var buttonTitle: AttributedString {
-        let text = amend ? "Amend last commit on **\(branch)**"
-            : stagesAll ? "Stage all & commit to **\(branch)**"
-            : "Commit \(stagedCount) file\(stagedCount == 1 ? "" : "s") to **\(branch)**"
-        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
+    private var buttonTitle: String {
+        amend ? "Amend last commit"
+            : stagesAll ? "Stage all & commit"
+            : "Commit \(stagedCount) file\(stagedCount == 1 ? "" : "s")"
     }
 
     /// Replaces an existing `type:` / `type(scope):` prefix or adds one.

@@ -10,7 +10,7 @@ struct GitPlusApp: App {
         WindowGroup("Git Plus") {
             ContentView()
                 .scaledInterfaceText()
-                .fluentAccentTint()
+                .fluentRootStyle()
                 .environment(store)
                 .frame(minWidth: 1000, minHeight: 600)
                 .onAppear { appDelegate.store = store }
@@ -22,7 +22,7 @@ struct GitPlusApp: App {
         }
 
         Settings {
-            SettingsView().scaledInterfaceText().fluentAccentTint()
+            SettingsView().scaledInterfaceText().fluentRootStyle()
         }
     }
 }

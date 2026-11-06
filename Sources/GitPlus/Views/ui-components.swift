@@ -43,22 +43,6 @@ struct ResizableColumn<Content: View>: View {
     }
 }
 
-/// Subtle background on hover — makes dense lists easier to scan.
-struct HoverHighlight: ViewModifier {
-    @State private var hovering = false
-    var color = Theme.rowHover
-
-    func body(content: Content) -> some View {
-        content
-            .background(hovering ? color : .clear)
-            .onHover { hovering = $0 }
-    }
-}
-
-extension View {
-    func hoverHighlight(_ color: Color = Theme.rowHover) -> some View { modifier(HoverHighlight(color: color)) }
-}
-
 /// Small borderless icon button with tooltip and hover state.
 struct IconButton: View {
     let symbol: String
@@ -72,7 +56,7 @@ struct IconButton: View {
         Button(role: role, action: action) {
             Image(systemName: symbol)
                 .appFont(size: 12, weight: .medium)
-                .frame(width: 22 * scale, height: 22 * scale)
+                .frame(width: 24 * scale, height: 24 * scale)
                 .background(RoundedRectangle(cornerRadius: Fluent.controlRadius).fill(hovering ? Fluent.subtleHover : .clear))
                 .contentShape(Rectangle())
         }
@@ -84,7 +68,7 @@ struct IconButton: View {
     }
 }
 
-/// Uppercase section title with count and trailing actions.
+/// Section title (sentence case, semibold) with a count badge and trailing actions.
 struct SectionHeader<Actions: View>: View {
     let title: String
     let count: Int
@@ -92,16 +76,17 @@ struct SectionHeader<Actions: View>: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(title.uppercased()).appFont(size: 11, weight: .semibold).tracking(0.4)
+            Text(title).appFont(size: 13, weight: .semibold).foregroundStyle(.primary)
             Text("\(count)")
-                .appFont(size: 11, weight: .bold, monospacedDigit: true)
+                .appFont(size: 11, weight: .semibold, monospacedDigit: true)
                 .padding(.horizontal, 6).padding(.vertical, 1)
-                .background(Capsule().fill(.secondary.opacity(0.18)))
+                .background(Capsule().fill(.secondary.opacity(0.15)))
             Spacer()
             actions
         }
         .foregroundStyle(.secondary)
         .padding(.vertical, 2)
+        .padding(.leading, 5).padding(.trailing, 10)   // title on the rows' icon edge, actions on their status letters
     }
 }
 
@@ -127,7 +112,7 @@ struct ToastView: View {
         .padding(.horizontal, Spacing.l).padding(.vertical, 10)
         .fluentFlyout()
         .padding(.bottom, 20)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(Motion.slideUp)
     }
 }
 
@@ -143,7 +128,7 @@ struct FailureBanner: View {
                 FluentSeverityIcon(severity: .error)
                 VStack(alignment: .leading, spacing: Spacing.xxs) {
                     Text(failure.title).appFont(.body, weight: .semibold)
-                    Text(failure.hint?.explanation ?? firstLine).appFont(.callout).foregroundStyle(.secondary)
+                    Text(failure.hint?.explanation ?? firstLine).appFont(.callout)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: Spacing.s)
@@ -174,7 +159,7 @@ struct FailureBanner: View {
         .fluentInfoBar(.error)
         .shadow(color: Fluent.shadow, radius: 16, y: 8)
         .padding(.bottom, 20)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(Motion.slideUp)
     }
 
     private var firstLine: String {
@@ -263,6 +248,7 @@ struct OptionChip: View {
                 .foregroundStyle(isOn ? Fluent.onAccent : .secondary)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
@@ -274,41 +260,43 @@ struct OpenInMenu: View {
 
     var body: some View {
         let editor = ExternalAppLauncher.preferredEditor(preferredEditor)
-        Menu {
-            if !ExternalAppLauncher.editors.isEmpty {
-                Section("Editors") {
-                    ForEach(ExternalAppLauncher.editors) { app in
-                        Button { app.open(repo.url); preferredEditor = app.bundleID } label: { appLabel(app) }
+        HStack(spacing: 0) {
+            Button {
+                if let editor { editor.open(repo.url) } else { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
+            } label: {
+                // Just the editor's own app icon; the name is in the tooltip and for VoiceOver.
+                Label {
+                    Text(editor.map { "Open in \($0.name)" } ?? "Open in…")
+                } icon: {
+                    if let icon = editor?.icon {
+                        Image(nsImage: Self.toolbarIcon(icon)).renderingMode(.original)
+                    } else {
+                        Image(systemName: "arrow.up.forward.app")
                     }
                 }
+                .labelStyle(.iconOnly)
             }
-            Section("Terminals") {
-                ForEach(ExternalAppLauncher.terminals) { app in
-                    Button { app.open(repo.url); preferredTerminal = app.bundleID } label: { appLabel(app) }
+            FluentSplitChevron(title: "More ways to open") {
+                if !ExternalAppLauncher.editors.isEmpty {
+                    Section("Editors") {
+                        ForEach(ExternalAppLauncher.editors) { app in
+                            Button { app.open(repo.url); preferredEditor = app.bundleID } label: { appLabel(app) }
+                        }
+                    }
+                }
+                Section("Terminals") {
+                    ForEach(ExternalAppLauncher.terminals) { app in
+                        Button { app.open(repo.url); preferredTerminal = app.bundleID } label: { appLabel(app) }
+                    }
+                }
+                Divider()
+                Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
+                Button("Copy Path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(repo.path, forType: .string)
                 }
             }
-            Divider()
-            Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
-            Button("Copy Path") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(repo.path, forType: .string)
-            }
-        } label: {
-            // Just the editor's own app icon; the name is in the tooltip and for VoiceOver.
-            Label {
-                Text(editor.map { "Open in \($0.name)" } ?? "Open in…")
-            } icon: {
-                if let icon = editor?.icon {
-                    Image(nsImage: Self.toolbarIcon(icon)).renderingMode(.original)
-                } else {
-                    Image(systemName: "arrow.up.forward.app")
-                }
-            }
-            .labelStyle(.iconOnly)
-        } primaryAction: {
-            if let editor { editor.open(repo.url) } else { NSWorkspace.shared.activateFileViewerSelecting([repo.url]) }
         }
-        .menuStyle(.button)
         .fixedSize()
         .help("\(editor.map { "Open in \($0.name)" } ?? "Open in…") (⌘⇧E editor · ⌃` terminal · ⌘⇧R Finder)")
     }

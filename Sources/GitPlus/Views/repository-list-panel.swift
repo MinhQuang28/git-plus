@@ -24,7 +24,7 @@ struct RepositoryListPanel: View {
     private func toggleCollapsed(_ key: SidebarSelection) {
         var set = collapsed
         if set.remove(key.rawValue) == nil { set.insert(key.rawValue) }
-        withAnimation(.easeInOut(duration: 0.15)) { collapsedRaw = set.sorted().joined(separator: ",") }
+        withAnimation(Motion.safe(.easeInOut(duration: 0.15))) { collapsedRaw = set.sorted().joined(separator: ",") }
     }
 
     private func matches(_ repo: RepoEntry) -> Bool { filter.isEmpty || repo.name.localizedCaseInsensitiveContains(filter) }
@@ -55,8 +55,7 @@ struct RepositoryListPanel: View {
                         .onKeyPress(.downArrow) { moveHighlight(1) }
                         .onKeyPress(.upArrow) { moveHighlight(-1) }
                 }
-                .padding(.horizontal, 10).padding(.vertical, 6)
-                .fluentTextField()
+                .fluentTextField(focused: filterFocused)
                 Menu {
                     Button("Add Repositories…") { addRepositories() }
                     Button("New Group") {
@@ -65,7 +64,12 @@ struct RepositoryListPanel: View {
                     }
                     Divider()
                     Button("Auto-Group by Remote") { Task { await store.autoGroupByRemote() } }
-                } label: { Text("Add") }
+                } label: {
+                    HStack(spacing: Spacing.xs) {
+                        Text("Add")
+                        Image(systemName: "chevron.down").imageScale(.small)
+                    }
+                }
                 .menuStyle(.button)
                 .buttonStyle(.fluent)
                 .fixedSize()
@@ -93,7 +97,7 @@ struct RepositoryListPanel: View {
             .onChange(of: highlightedID) { _, id in if let id { proxy.scrollTo(id.uuidString) } }
             }
         }
-        .onAppear { filterFocused = true }
+        .onAppear { DispatchQueue.main.async { filterFocused = true } }   // too early while the panel is still inserting
         .onChange(of: filter) { highlightedID = filter.isEmpty ? nil : visibleRepos.first?.id }
         .onExitCommand { switcher.isExpanded = false }
     }
@@ -110,10 +114,11 @@ struct RepositoryListPanel: View {
         HStack(spacing: 6) {
             if renamingKey == key.rawValue {
                 TextField("Group name", text: $renameText)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .focused($renameFocused)
                     .onSubmit { commitRename(key) }
                     .onExitCommand { renamingKey = nil }
+                    .fluentTextField(focused: renameFocused)
             } else {
                 Button { toggleCollapsed(key) } label: {
                     Image(systemName: "chevron.right")
@@ -128,20 +133,21 @@ struct RepositoryListPanel: View {
                 // Folder icon sets groups apart from the repository rows below them.
                 Image(systemName: groupID == nil ? "tray.fill" : "folder.fill")
                     .appFont(size: 13)
-                    .foregroundStyle(groupID == nil ? Color.secondary : Fluent.accent)
+                    .foregroundStyle(.secondary)
                     .frame(width: 18)
-                Text(name).appFont(size: 13, weight: .bold)
+                Text(name).appFont(size: 13, weight: .semibold)
                 Text("\(count)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
                 Spacer()
                 Image(systemName: "rectangle.grid.1x2").appFont(.caption).foregroundStyle(.secondary)
                     .help("Open group overview")
             }
         }
-        .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 4)
+        .padding(.horizontal, 10).padding(.vertical, Spacing.xs)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { startRename(key.rawValue, name) }
         .onTapGesture { pick(key) }
-        .hoverHighlight()
+        .fluentListItem(selected: false)
+        .padding(.top, Spacing.s)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(name) group, \(count) repositories")
         .accessibilityAddTraits(.isButton)

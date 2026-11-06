@@ -43,15 +43,16 @@ struct BranchPickerView: View {
                 Text("Branches").tag(false)
                 Text("Tags").tag(true)
             }
-            .pickerStyle(.segmented)
+            .fluentSegmented()
             .labelsHidden()
             .padding([.horizontal, .top], 10)
             TextField(showTags ? "Filter tags" : "Filter or create branch", text: $filter)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 .focused($filterFocused)
                 .onSubmit { if !showTags { activate(highlighted) } }
                 .onKeyPress(.downArrow) { move(1) }
                 .onKeyPress(.upArrow) { move(-1) }
+                .fluentTextField(focused: filterFocused)
                 .padding(10)
             Divider()
             if showTags { tagList } else { branchList }
@@ -69,6 +70,7 @@ struct BranchPickerView: View {
                 Spacer()
                 Text(showTags ? "Right-click a tag for more" : "Right-click a branch for more").appFont(.caption).foregroundStyle(.secondary)
             }
+            .buttonStyle(.fluent)
             .controlSize(.small)
             .padding(8)
         }
@@ -244,8 +246,8 @@ struct BranchPickerView: View {
     }
 
     private func sectionHeader(_ title: String) -> some View {
-        Text(title.uppercased())
-            .appFont(size: 11, weight: .semibold).tracking(0.4)
+        Text(title)
+            .appFont(size: 12, weight: .semibold)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 4)
@@ -259,12 +261,11 @@ struct BranchPickerView: View {
                 Spacer()
                 if let detail { Text(detail).appFont(.caption).foregroundStyle(.secondary) }
             }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            .background(isHighlighted ? Fluent.accent.opacity(0.18) : .clear)
+            .padding(.horizontal, Spacing.s).padding(.vertical, 6)
             .contentShape(Rectangle())
+            .fluentListItem(selected: isHighlighted)
         }
         .buttonStyle(.plain)
-        .hoverHighlight()
         .accessibilityAddTraits(isHighlighted ? .isSelected : [])
     }
 }

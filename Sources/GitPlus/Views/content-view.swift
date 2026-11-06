@@ -15,6 +15,8 @@ struct ContentView: View {
         Binding(get: { SidebarSelection(rawValue: storedSelection) }, set: { storedSelection = $0?.rawValue ?? "" })
     }
 
+    @State private var clearedLaunchFocus = false
+
     var body: some View {
         VStack(spacing: 0) {
             FluentTitleBar()
@@ -43,11 +45,18 @@ struct ContentView: View {
         .animation(.spring(duration: 0.3), value: store.failure)
         .animation(.easeOut(duration: 0.12), value: showPalette)
         .task { await store.refreshStatus() }
+        // AppKit focuses the first control when the window first becomes key, which draws a ring under Full
+        // Keyboard Access before anyone pressed a key. Start with nothing focused; Tab still enters the first control.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            guard !clearedLaunchFocus, let window = note.object as? NSWindow else { return }
+            clearedLaunchFocus = true
+            DispatchQueue.main.async { window.makeFirstResponder(nil) }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showPalette.toggle() }
         .onReceive(NotificationCenter.default.publisher(for: .showClone)) { _ in showClone = true }
         .onReceive(NotificationCenter.default.publisher(for: .showActivity)) { _ in showActivity = true }
-        .sheet(isPresented: $showClone) { CloneSheet { showClone = false } }
-        .sheet(isPresented: $showActivity) { ActivityView { showActivity = false } }
+        .sheet(isPresented: $showClone) { CloneSheet { showClone = false }.fluentDialog() }
+        .sheet(isPresented: $showActivity) { ActivityView { showActivity = false }.fluentDialog() }
     }
 
     @ViewBuilder private var content: some View {
@@ -85,7 +94,7 @@ struct WelcomeView: View {
         VStack(spacing: Spacing.xl) {
             VStack(spacing: Spacing.s) {
                 Image(systemName: "square.stack.3d.up.fill").appFont(size: 44).foregroundStyle(.tint).symbolRenderingMode(.hierarchical)
-                Text(store.workspace.repos.isEmpty ? "Welcome to Git Plus" : "Pick a Repository").appFont(.largeTitle, weight: .semibold)
+                Text(store.workspace.repos.isEmpty ? "Welcome to Git Plus" : "Pick a repository").appFont(.largeTitle, weight: .semibold)
                 Text(store.workspace.repos.isEmpty ? "Add the repositories you work on — or a whole folder of them."
                      : "Choose a repository or group from the list on the left, or press ⌘K.")
                     .foregroundStyle(.secondary)
@@ -101,6 +110,7 @@ struct WelcomeView: View {
                     RepoActions.newRepository(store)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)   // equal heights, sized by the tallest card
             HStack(spacing: Spacing.l) {
                 ForEach(["git", "gh", "glab"], id: \.self) { tool in
                     HStack(spacing: Spacing.xs) {
@@ -132,18 +142,33 @@ struct WelcomeView: View {
     }
 
     private func card(_ title: String, detail: String, symbol: String, keys: String, action: @escaping () -> Void) -> some View {
+        WelcomeCard(title: title, detail: detail, symbol: symbol, keys: keys, action: action)
+    }
+}
+
+private struct WelcomeCard: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let keys: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: Spacing.s) {
-                Image(systemName: symbol).appFont(.title2).foregroundStyle(.tint)
+                Image(systemName: symbol).appFont(.title2).foregroundStyle(.secondary).frame(height: 24, alignment: .leading)
                 Text(title).appFont(.headline)
                 Text(detail).appFont(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 KeyboardHint(keys: keys)
             }
-            .frame(width: 170, height: 150, alignment: .topLeading)
+            .frame(maxWidth: 170, minHeight: 124, alignment: .topLeading)
             .padding(Spacing.l)
+            .fluentCard(hovering: hovering)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.fluent)
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }

@@ -13,23 +13,23 @@ struct ChangedFileList: View {
             Rectangle().fill(Theme.separator).frame(height: 1)
             List(files, selection: $selection) { file in
                 row(file, showsFolder: shared == nil)
-                    .listRowSeparator(.visible)
+                    .listRowSeparator(.hidden)
                     .contextMenu { contextMenu?(file) }
             }
-            .listStyle(.plain)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
         }
     }
 
     private func header(_ shared: String?) -> some View {
         HStack(spacing: Spacing.xs) {
-            Spacer()
             Text("\(files.count) changed file\(files.count == 1 ? "" : "s")").appFont(.callout)
             if let shared {
                 Text("in \(shared)").appFont(.callout).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
             }
             Spacer()
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, Spacing.m)
         .frame(minHeight: 36)
         .background(Theme.headerBackground)
     }

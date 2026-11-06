@@ -52,7 +52,7 @@ struct RepositorySwitcherHeader: View {
                 Image(systemName: icon)
                     .appFont(size: 17)
                     .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Fluent.accent)
+                    .foregroundStyle(.secondary)
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(caption).appFont(size: 11).foregroundStyle(.secondary)
@@ -63,7 +63,7 @@ struct RepositorySwitcherHeader: View {
                     .appFont(size: 11, weight: .semibold)
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isOpen ? 180 : 0))
-                    .animation(.easeOut(duration: 0.15), value: isOpen)
+                    .animation(Motion.safe(.easeOut(duration: 0.15)), value: isOpen)
             }
             .padding(.horizontal, 14)
             .frame(minHeight: 54)
@@ -71,7 +71,6 @@ struct RepositorySwitcherHeader: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .focusEffectDisabled()
         .onHover { hovering = $0 }
         .help("Repositories and groups (⌘T)")
         .onReceive(NotificationCenter.default.publisher(for: .showRepositoryPicker)) { _ in switcher.isExpanded.toggle() }

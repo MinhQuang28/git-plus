@@ -62,7 +62,7 @@ struct GroupWorkspaceView: View {
             .buttonStyle(.plain)
             .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
         }
-        .listStyle(.plain)
+        .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .overlay {
             if repos.isEmpty {
@@ -75,22 +75,13 @@ struct GroupWorkspaceView: View {
                 }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            AddToGroupMenu(groupID: groupID) {
-                Label("Add Repository", systemImage: "plus").frame(maxWidth: .infinity)
-            }
-            .menuStyle(.button)
-            .buttonStyle(.fluent)
-            .menuIndicator(.hidden)
-            .padding(Spacing.s)
-        }
     }
 
     private var activityList: some View {
         List(activity, selection: $selectedActivity) { item in
-            CommitListRow(commit: item.commit, repoName: item.repoName).listRowSeparator(.visible)
+            CommitListRow(commit: item.commit, repoName: item.repoName).listRowSeparator(.hidden)
         }
-        .listStyle(.plain)
+        .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .overlay { if isLoading && activity.isEmpty { ProgressView() } }
     }

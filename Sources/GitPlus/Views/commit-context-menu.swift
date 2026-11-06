@@ -102,12 +102,15 @@ struct CommitRequestPresenter: ViewModifier {
                 }
             }
             .sheet(isPresented: isPresented(for: { $0.usesSheet })) {
-                switch request {
-                case .cherryPick(let c): CherryPickSheet(repo: repo, commit: c) { request = nil }
-                case .reword(let c): RewordSheet(repo: repo, commit: c) { request = nil }
-                case .rebase(let c): InteractiveRebaseSheet(repo: repo, from: c) { request = nil }
-                default: EmptyView()
+                Group {
+                    switch request {
+                    case .cherryPick(let c): CherryPickSheet(repo: repo, commit: c) { request = nil }
+                    case .reword(let c): RewordSheet(repo: repo, commit: c) { request = nil }
+                    case .rebase(let c): InteractiveRebaseSheet(repo: repo, from: c) { request = nil }
+                    default: EmptyView()
+                    }
                 }
+                .fluentDialog()
             }
     }
 

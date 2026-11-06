@@ -8,7 +8,7 @@ struct FluentTitleBar: View {
 
     var body: some View {
         HStack(spacing: Spacing.s) {
-            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 16, height: 16)
+            Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 16, height: 16).accessibilityHidden(true)
             Text("Git Plus").appFont(size: 12).foregroundStyle(.secondary)
             Spacer()
         }
@@ -42,14 +42,11 @@ struct FluentCommandBar<Leading: View, Trailing: View>: View {
 struct FluentSelectorBar<Value: Hashable>: View {
     @Binding var selection: Value
     let items: [(value: Value, title: String)]
-    @Namespace private var pill
 
     var body: some View {
         HStack(spacing: Spacing.xxs) {
             ForEach(items, id: \.value) { item in
-                SelectorItem(title: item.title, isSelected: item.value == selection, pill: pill) {
-                    withAnimation(.spring(duration: 0.25)) { selection = item.value }
-                }
+                SelectorItem(title: item.title, isSelected: item.value == selection) { selection = item.value }
             }
         }
     }
@@ -57,7 +54,6 @@ struct FluentSelectorBar<Value: Hashable>: View {
     private struct SelectorItem: View {
         let title: String
         let isSelected: Bool
-        let pill: Namespace.ID
         let action: () -> Void
         @State private var hovering = false
 
@@ -69,18 +65,30 @@ struct FluentSelectorBar<Value: Hashable>: View {
                     .padding(.horizontal, Spacing.m).frame(height: 32)
                     .background(RoundedRectangle(cornerRadius: Fluent.controlRadius).fill(hovering ? Fluent.subtleHover : .clear))
                     .overlay(alignment: .bottom) {
-                        if isSelected {
-                            Capsule().fill(Fluent.accent).frame(width: 16, height: 3)
-                                .matchedGeometryEffect(id: "pill", in: pill)
-                        }
+                        if isSelected { Capsule().fill(Fluent.accent).frame(width: 16, height: 3) }
                     }
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .focusEffectDisabled()
             .onHover { hovering = $0 }
             .accessibilityAddTraits(isSelected ? .isSelected : [])
         }
+    }
+}
+
+/// The arrow half of a split button: the full list of actions beside a primary button.
+struct FluentSplitChevron<Items: View>: View {
+    let title: String
+    @ViewBuilder var items: Items
+
+    var body: some View {
+        Menu { items } label: {
+            Label(title, systemImage: "chevron.down").labelStyle(.iconOnly).appFont(size: 10, weight: .semibold)
+        }
+        .buttonStyle(FluentButtonStyle(kind: .subtle, sidePadding: 6))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(title)
     }
 }
 
@@ -120,7 +128,7 @@ struct FluentSeverityIcon: View {
 
     var body: some View {
         let glyph = Fluent.glyph(severity)
-        Image(systemName: glyph.symbol).symbolRenderingMode(.palette).foregroundStyle(.white, glyph.color)
+        Image(systemName: glyph.symbol).symbolRenderingMode(.palette).foregroundStyle(Fluent.onSeverity, glyph.color)
     }
 }
 
@@ -131,12 +139,36 @@ extension View {
 
     func fluentContentLayer() -> some View { modifier(FluentContentLayer()) }
 
-    /// Empty parts of the bar move the window; double-click zooms, like a title bar.
+    /// Sheets and popovers: neutral secondary buttons and pickers, so accent stays on the primary action.
+    func fluentDialog() -> some View { buttonStyle(.fluent).tint(.primary) }
+
+    /// TextBox that tracks its own focus, for fields no other view needs to focus.
+    func fluentTextBox() -> some View { modifier(FluentTextBox()) }
+
+    /// Empty parts of the bar move the window; double-click acts like a title bar.
     func windowDragArea() -> some View {
         background {
             Color.clear.contentShape(Rectangle())
                 .gesture(WindowDragGesture())
-                .onTapGesture(count: 2) { NSApp.keyWindow?.zoom(nil) }
+                .onTapGesture(count: 2, perform: titleBarDoubleClick)
         }
+    }
+}
+
+private struct FluentTextBox: ViewModifier {
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        content.textFieldStyle(.plain).focused($focused).fluentTextField(focused: focused)
+    }
+}
+
+/// Follows System Settings → Desktop & Dock → "Double-click a window's title bar to".
+private func titleBarDoubleClick() {
+    guard let window = NSApp.keyWindow else { return }
+    switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+    case "Minimize": window.miniaturize(nil)
+    case "None": break
+    default: window.zoom(nil)
     }
 }

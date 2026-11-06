@@ -48,7 +48,7 @@ struct GroupDashboardView: View {
                         Button { filter = f } label: {
                             HStack(spacing: Spacing.xs) {
                                 Text(f.rawValue)
-                                Text("\(n)").monospacedDigit().foregroundStyle(.secondary)
+                                Text("\(n)").monospacedDigit().foregroundStyle(filter == f ? Fluent.onAccent : .secondary)
                             }
                             .appFont(.callout, weight: .medium)
                             .padding(.horizontal, 10).padding(.vertical, Spacing.xs)
@@ -57,6 +57,7 @@ struct GroupDashboardView: View {
                             .foregroundStyle(filter == f ? Fluent.onAccent : .primary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(filter == f ? .isSelected : [])
                     }
                 }
                 Spacer()
@@ -64,7 +65,7 @@ struct GroupDashboardView: View {
                     Image(systemName: "square.grid.2x2").help("Cards").tag(true)
                     Image(systemName: "list.bullet").help("Table").tag(false)
                 }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                .fluentSegmented().labelsHidden().fixedSize()
             }
             .padding(Spacing.m)
             Divider()
@@ -80,7 +81,7 @@ struct GroupDashboardView: View {
                     }
                     .padding(Spacing.m)
                 }
-                .overlay { if visible.isEmpty { ContentUnavailableView("Nothing Here", systemImage: "line.3.horizontal.decrease.circle") } }
+                .overlay { if visible.isEmpty { ContentUnavailableView("No matching repositories", systemImage: "line.3.horizontal.decrease.circle") } }
             } else {
                 GroupDashboardTable(repos: visible, selection: $selection)
             }
@@ -140,7 +141,7 @@ struct RepoCard: View {
                 Sparkline(values: sparkline).frame(height: 22)
                 Spacer(minLength: Spacing.s)
                 Text(status?.lastFetched.map { "fetched \(RelativeTime.string($0))" } ?? "never fetched")
-                    .appFont(.caption).foregroundStyle(.tertiary).lineLimit(1)
+                    .appFont(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
         }
         .padding(Spacing.m)

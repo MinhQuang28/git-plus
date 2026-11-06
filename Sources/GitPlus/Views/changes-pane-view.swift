@@ -14,6 +14,7 @@ struct ChangesPaneView: View {
     @State private var confirmDiscardAll = false
     @State private var showStash = false
     @State private var filter = ""
+    @FocusState private var filterFocused: Bool
 
     private func matches(_ file: ChangedFile) -> Bool {
         let q = filter.trimmingCharacters(in: .whitespaces)
@@ -59,14 +60,16 @@ struct ChangesPaneView: View {
                         }
                     }
                 }
-                Section {
-                    ForEach(unstaged) { row($0, showsFolder: sharedFolder == nil) }
-                } header: {
-                    SectionHeader(title: "Changes", count: unstaged.count) {
-                        if !tree.unstaged.isEmpty {
-                            IconButton(symbol: "plus.circle", help: "Stage all") { run("stage") { try await $0.stageAll() } }
+                if !tree.isEmpty {
+                    Section {
+                        ForEach(unstaged) { row($0, showsFolder: sharedFolder == nil) }
+                    } header: {
+                        SectionHeader(title: "Changes", count: unstaged.count) {
+                            if !tree.unstaged.isEmpty {
+                                IconButton(symbol: "plus.circle", help: "Stage all") { run("stage") { try await $0.stageAll() } }
+                            }
+                            moreMenu
                         }
-                        if !tree.isEmpty { moreMenu }
                     }
                 }
             }
@@ -89,14 +92,14 @@ struct ChangesPaneView: View {
             }
             .overlay {
                 if tree.isEmpty {
-                    ContentUnavailableView("No local changes", systemImage: "checkmark.seal",
-                                           description: Text("Your working directory is clean."))
+                    // The main pane carries the full empty state.
+                    Text("No local changes").foregroundStyle(.secondary)
                 }
             }
             Rectangle().fill(Theme.separator).frame(height: 1)
             CommitBoxView(repo: repo, stagedCount: tree.staged.count, hasChanges: !tree.isEmpty)
         }
-        .sheet(isPresented: $showStash) { StashSheet(repo: repo) }
+        .sheet(isPresented: $showStash) { StashSheet(repo: repo).fluentDialog() }
         .confirmationDialog(discardTitle, isPresented: Binding(get: { !discarding.isEmpty }, set: { if !$0 { discarding = [] } })) {
             Button("Discard Changes", role: .destructive) {
                 store.discard(discarding, in: repo.id)
@@ -116,15 +119,14 @@ struct ChangesPaneView: View {
     private var filterField: some View {
         HStack(spacing: Spacing.xs) {
             Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
-            TextField("Filter changed files", text: $filter).textFieldStyle(.plain)
+            TextField("Filter changed files", text: $filter).textFieldStyle(.plain).focused($filterFocused)
             if !filter.isEmpty {
                 Button { filter = "" } label: { Label("Clear filter", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
         .appFont(.callout)
-        .padding(.horizontal, Spacing.s).padding(.vertical, 5)
-        .fluentTextField()
-        .padding(.horizontal, Spacing.s).padding(.top, Spacing.xs)
+        .fluentTextField(focused: filterFocused)
+        .padding(.horizontal, Spacing.pane).padding(.top, Spacing.s)
     }
 
     private var moreMenu: some View {
@@ -136,7 +138,7 @@ struct ChangesPaneView: View {
         } label: {
             Label("More actions", systemImage: "ellipsis.circle").labelStyle(.iconOnly)
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.borderlessButton).tint(.secondary)
         .menuIndicator(.hidden)
         .fixedSize()
         .help("More actions")

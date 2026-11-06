@@ -43,7 +43,8 @@ struct CommitDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(commit?.subject ?? target.title).appFont(size: 16, weight: .semibold).lineLimit(1)
+                Text(commit?.subject ?? target.title).appFont(size: 16, weight: .semibold).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !body_.isEmpty {
                     Button { showFullMessage.toggle() } label: {
                         Image(systemName: showFullMessage ? "chevron.up" : "chevron.down")

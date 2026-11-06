@@ -114,7 +114,7 @@ struct DiffHeaderView: View {
                 Label("Unified", systemImage: "rectangle.grid.1x2").labelStyle(.iconOnly).help("Unified").tag(DiffDisplayMode.unified)
                 Label("Split", systemImage: "rectangle.split.2x1").labelStyle(.iconOnly).help("Split").tag(DiffDisplayMode.split)
             }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .fluentSegmented().labelsHidden().fixedSize()
             Menu {
                 Toggle("Syntax Highlighting", isOn: $syntaxHighlight)
                 Toggle("Show Whole File", isOn: $fullContext)
@@ -124,7 +124,7 @@ struct DiffHeaderView: View {
                 Button("Smaller Text") { fontSize = max(fontSize - 1, 9) }
                 Button("Default Size") { fontSize = 12.5 }
             } label: { Label("Diff options", systemImage: "gearshape").labelStyle(.iconOnly) }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .menuStyle(.borderlessButton).tint(.secondary).menuIndicator(.hidden).fixedSize()
             .help("Diff options")
         }
         .appFont(size: 13)

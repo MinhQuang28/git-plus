@@ -180,7 +180,7 @@ struct FileDiffView: View {
                 }
                 .neutralScrollIndicator()   // gray thumb drawn over the marker strip
                 .onChange(of: scrollTarget) { _, id in
-                    if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
+                    if let id { withAnimation(Motion.safe(.easeOut(duration: 0.2))) { proxy.scrollTo(id, anchor: .top) } }
                 }
             }
         }

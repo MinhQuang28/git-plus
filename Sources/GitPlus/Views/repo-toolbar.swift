@@ -61,7 +61,7 @@ struct BranchToolbarButton: View {
         }
         .help("Switch, create, merge or delete branches (⌘B)")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-            BranchPickerView(repo: repo, isPresented: $isPresented)
+            BranchPickerView(repo: repo, isPresented: $isPresented).fluentDialog()
         }
         .onReceive(NotificationCenter.default.publisher(for: .showBranchPicker)) { _ in isPresented = true }
     }
@@ -77,41 +77,45 @@ struct SyncToolbarButton: View {
     var body: some View {
         let busy = store.busy.contains(repo.id)
         let suggestion = SyncSuggestion(status)
-        Menu {
-            Section(fetchedText) {
-                Button("Fetch") { Task { await store.fetch([repo.id]) } }
-            }
-            Section("Pull") {
-                ForEach(PullMode.allCases, id: \.self) { mode in
-                    Button("Pull (\(mode.title))") { Task { await store.pull([repo.id], mode: mode) } }
+        HStack(spacing: 0) {
+            Button {
+                primary(suggestion)
+            } label: {
+                if busy {
+                    Label { Text(WorkspaceStore.progressTitle(store.busyLabels[repo.id] ?? "sync")) } icon: { ProgressView().controlSize(.small) }
+                        .labelStyle(.titleAndIcon)
+                } else {
+                    Label {
+                        Text(suggestion.title)
+                    } icon: {
+                        // Orange dot nudges a fetch when the remote state is stale.
+                        Image(systemName: suggestion.symbol).overlay(alignment: .topTrailing) {
+                            if isStale { Circle().fill(.orange).frame(width: 6, height: 6).offset(x: 3, y: -2) }
+                        }
+                    }
+                    .labelStyle(.titleAndIcon)
                 }
             }
-            Section("Push") {
-                Button(status?.upstream == nil ? "Publish Branch" : "Push") { Task { await store.push(repo.id) } }
-                    .disabled(status?.remote == nil)
-                Button("Force Push (with Lease)…") { ForcePushConfirmation.run(store, repo.id) }
-                    .disabled(status?.upstream == nil)
-            }
-            Divider()
-            Button("Remotes…") { RepoActions.post(.showRemotes) }
-        } label: {
-            if busy {
-                Label { Text(WorkspaceStore.progressTitle(store.busyLabels[repo.id] ?? "sync")) } icon: { ProgressView().controlSize(.small) }
-                    .labelStyle(.titleAndIcon)
-            } else {
-                Label {
-                    Text(suggestion.title)
-                } icon: {
-                    // Orange dot nudges a fetch when the remote state is stale.
-                    Image(systemName: suggestion.symbol).overlay(alignment: .topTrailing) {
-                        if isStale { Circle().fill(.orange).frame(width: 6, height: 6).offset(x: 3, y: -2) }
+            FluentSplitChevron(title: "More sync actions") {
+                Section(fetchedText) {
+                    Button("Fetch") { Task { await store.fetch([repo.id]) } }
+                }
+                Section("Pull") {
+                    ForEach(PullMode.allCases, id: \.self) { mode in
+                        Button("Pull (\(mode.title))") { Task { await store.pull([repo.id], mode: mode) } }
                     }
                 }
-                .labelStyle(.titleAndIcon)
+                Section("Push") {
+                    Button(status?.upstream == nil ? "Publish Branch" : "Push") { Task { await store.push(repo.id) } }
+                        .disabled(status?.remote == nil)
+                    Button("Force Push (with Lease)…") { ForcePushConfirmation.run(store, repo.id) }
+                        .disabled(status?.upstream == nil)
+                }
+                Divider()
+                Button("Remotes…") { RepoActions.post(.showRemotes) }
             }
-        } primaryAction: {
-            primary(suggestion)
         }
+        .fixedSize()
         .disabled(busy)
         .help("\(help(suggestion))\n\(fetchedText)")
     }
@@ -178,7 +182,7 @@ struct ReviewsToolbarButton: View {
         Button { isPresented.toggle() } label: { Label(provider.reviewNoun, systemImage: "arrow.triangle.pull").labelStyle(.titleAndIcon) }
             .help("\(provider.reviewNoun) via \(provider.cliName ?? "")")
             .popover(isPresented: $isPresented, arrowEdge: .bottom) {
-                PullRequestsView(repo: repo, provider: provider) { isPresented = false }
+                PullRequestsView(repo: repo, provider: provider) { isPresented = false }.fluentDialog()
             }
     }
 }

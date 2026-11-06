@@ -54,9 +54,8 @@ struct PullRequestsView: View {
                 Text("Closed").tag("closed")
                 Text("All").tag("all")
             }
-            .pickerStyle(.segmented)
+            .fluentSegmented()
             .labelsHidden()
-            .focusEffectDisabled()
         }
         .padding(14)
     }
@@ -123,11 +122,11 @@ struct PullRequestsView: View {
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.up.right").appFont(.caption).foregroundStyle(.tertiary).padding(.top, 2)
             }
-            .padding(.horizontal, 14).padding(.vertical, 9)
+            .padding(.horizontal, 10).padding(.vertical, 9)
             .contentShape(Rectangle())
+            .fluentListItem(selected: false)
         }
         .buttonStyle(.plain)
-        .hoverHighlight()
         .help("Open \(prefix)\(item.number) in the browser")
         .contextMenu {
             Button("Check Out \(item.sourceBranch)") { checkout(item) }

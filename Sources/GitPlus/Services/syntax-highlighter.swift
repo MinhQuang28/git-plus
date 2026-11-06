@@ -126,7 +126,7 @@ struct SyntaxHighlighter: Sendable {
     private static let keywordColor = Theme.dynamic(light: NSColor(srgbRed: 0.81, green: 0.13, blue: 0.18, alpha: 1), dark: NSColor(srgbRed: 1, green: 0.48, blue: 0.45, alpha: 1))
     private static let stringColor = Theme.dynamic(light: NSColor(srgbRed: 0.04, green: 0.19, blue: 0.41, alpha: 1), dark: NSColor(srgbRed: 0.65, green: 0.84, blue: 1, alpha: 1))
     private static let numberColor = Theme.dynamic(light: NSColor(srgbRed: 0.02, green: 0.31, blue: 0.68, alpha: 1), dark: NSColor(srgbRed: 0.47, green: 0.75, blue: 1, alpha: 1))
-    private static let typeColor = Theme.dynamic(light: NSColor(srgbRed: 0.51, green: 0.31, blue: 0.87, alpha: 1), dark: NSColor(srgbRed: 0.82, green: 0.66, blue: 1, alpha: 1))
+    private static let typeColor = Theme.dynamic(light: NSColor(srgbRed: 0.45, green: 0.26, blue: 0.82, alpha: 1), dark: NSColor(srgbRed: 0.82, green: 0.66, blue: 1, alpha: 1))
 
     private static func color(_ kind: SyntaxTokenKind) -> Color? {
         switch kind {

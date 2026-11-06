@@ -9,6 +9,16 @@ enum Spacing {
     static let m: CGFloat = 12
     static let l: CGFloat = 16
     static let xl: CGFloat = 24
+    /// Inset of controls inside a pane; matches the edge of the system's inset list selection.
+    static let pane: CGFloat = 10
+}
+
+/// Motion that honors System Settings → Accessibility → Reduce motion.
+enum Motion {
+    private static var reduced: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    static func safe(_ animation: Animation) -> Animation? { reduced ? nil : animation }
+    /// Toasts and banners: slide up, or only fade when motion is reduced.
+    static var slideUp: AnyTransition { reduced ? .opacity : .move(edge: .bottom).combined(with: .opacity) }
 }
 
 enum Radius {
@@ -33,34 +43,33 @@ enum Theme {
     static let barText = Color.primary
     static let barSecondaryText = Color.secondary
     static let barDivider = dynamic(light: hex(0xd0d7de), dark: hex(0x30363d))
-    static let rowHover = Color.primary.opacity(0.05)
     static let banner = dynamic(light: hex(0xfff8c5), dark: hex(0x3b2e0a))
-    static let bannerBorder = dynamic(light: hex(0xd4a72c), dark: hex(0x9e6a03))
 
     static let paneBackground = Color(nsColor: .windowBackgroundColor)
     static let headerBackground = Color.primary.opacity(0.045)
     static let separator = Color(nsColor: .separatorColor)
 
     // Diff colors match GitHub / GitHub Desktop: strong line tint, darker gutter, bright changed words.
-    static let addedLine = dynamic(light: hex(0xe6ffec), dark: hex(0x0f3b1d))
-    static let addedGutter = dynamic(light: hex(0xccffd8), dark: hex(0x0b2e16))
-    static let addedWord = dynamic(light: hex(0xabf2bc), dark: hex(0x1f7d39))
-    static let removedLine = dynamic(light: hex(0xffebe9), dark: hex(0x4a1215))
-    static let removedGutter = dynamic(light: hex(0xffd7d5), dark: hex(0x3a0d10))
-    static let removedWord = dynamic(light: hex(0xffa8a8), dark: hex(0xb3232d))
-    static let hunkLine = dynamic(light: hex(0xeef5ff), dark: hex(0x1d2633))
-    static let contextLine = Color(nsColor: .textBackgroundColor)
+    static let addedLine = dynamic(light: hex(0xe6ffec), dark: hex(0x2a3e2d))
+    static let addedGutter = dynamic(light: hex(0xccffd8), dark: hex(0x2a4c30))
+    static let addedWord = dynamic(light: hex(0xabf2bc), dark: hex(0x2b5e34))
+    static let removedLine = dynamic(light: hex(0xffebe9), dark: hex(0x4d2f2e))
+    static let removedGutter = dynamic(light: hex(0xffd7d5), dark: hex(0x663432))
+    static let removedWord = dynamic(light: hex(0xffa8a8), dark: hex(0x863b37))
+    static let hunkLine = dynamic(light: hex(0xeef5ff), dark: hex(0x2a3442))
+    static let contextLine = dynamic(light: hex(0xffffff), dark: hex(0x282828))
     static let gutter = Color.primary.opacity(0.035)
-    static let gutterText = Color.secondary
+    static let gutterText = Color.primary.opacity(0.65)   // AA on every diff tint, unlike .secondary
     static let emptySide = Color.primary.opacity(0.03)
 
-    static let modified = dynamic(light: hex(0xb08800), dark: hex(0xd8b64a))
-    static let added = dynamic(light: hex(0x28a745), dark: hex(0x3fb950))
-    static let deleted = dynamic(light: hex(0xcb2431), dark: hex(0xf85149))
-    static let renamed = dynamic(light: hex(0x0366d6), dark: hex(0x58a6ff))
-    static let conflict = dynamic(light: hex(0xbc4c00), dark: hex(0xf0883e))
-    static let ahead = dynamic(light: hex(0x0969da), dark: hex(0x58a6ff))
-    static let behind = dynamic(light: hex(0xbc4c00), dark: hex(0xf0883e))
+    // Light values hold 4.5:1 on Mica and on a selected list row.
+    static let modified = dynamic(light: hex(0x805500), dark: hex(0xd8b64a))
+    static let added = dynamic(light: hex(0x116329), dark: hex(0x3fb950))
+    static let deleted = dynamic(light: hex(0xb01c27), dark: hex(0xff7b72))
+    static let renamed = dynamic(light: hex(0x0a58b8), dark: hex(0x58a6ff))
+    static let conflict = dynamic(light: hex(0xa33f00), dark: hex(0xf0883e))
+    static let ahead = dynamic(light: hex(0x0a58b8), dark: hex(0x58a6ff))
+    static let behind = dynamic(light: hex(0xa33f00), dark: hex(0xf0883e))
 
     /// Commit graph lane colors.
     static let lanes: [Color] = [

@@ -28,6 +28,7 @@ struct HistoryPaneView: View {
     @State private var counts = (ahead: 0, behind: 0)
     @State private var request: CommitRequest?
     @FocusState private var compareFocused: Bool
+    @FocusState private var searchFocused: Bool
     @AppStorage("historyAllBranches") private var allBranches = false
     @AppStorage("historyGraph") private var showGraph = false
     @State private var query = ""
@@ -42,7 +43,6 @@ struct HistoryPaneView: View {
     var body: some View {
         VStack(spacing: 0) {
             compareField
-            Divider()
             // Suggestions appear only while typing, so an auto-focused field never hides the history.
             if compareFocused && compareBranch == nil && !compareText.isEmpty {
                 branchSuggestions
@@ -83,10 +83,8 @@ struct HistoryPaneView: View {
                     .onExitCommand { compareFocused = false; compareText = "" }
             }
         }
-        .padding(.horizontal, 8).padding(.vertical, 6)
-        .background(RoundedRectangle(cornerRadius: Radius.s).fill(Theme.headerBackground))
-        .overlay(RoundedRectangle(cornerRadius: Radius.s).stroke(Theme.separator))
-        .padding(8)
+        .fluentTextField(focused: compareFocused)
+        .padding(.horizontal, Spacing.pane).padding(.vertical, Spacing.s)
     }
 
     private var branchSuggestions: some View {
@@ -113,9 +111,9 @@ struct HistoryPaneView: View {
             Text("Behind (\(counts.behind))").tag(CompareSide.behind)
             Text("Ahead (\(counts.ahead))").tag(CompareSide.ahead)
         }
-        .pickerStyle(.segmented)
+        .fluentSegmented()
         .labelsHidden()
-        .padding(.horizontal, 8).padding(.bottom, 6)
+        .padding(.horizontal, Spacing.pane).padding(.bottom, Spacing.xs)
         .help(side == .behind ? "Commits in \(branch) not in your branch" : "Commits in your branch not in \(branch)")
     }
 
@@ -127,20 +125,21 @@ struct HistoryPaneView: View {
                 } else {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary).appFont(.caption)
                 }
-                TextField("Search  ·  author:name  path:dir/", text: $query).textFieldStyle(.plain).appFont(.callout)
+                TextField(searchFocused ? "author:name  path:dir/" : "Search commits", text: $query)   // the syntax, once it's useful
+                    .textFieldStyle(.plain).appFont(.callout).focused($searchFocused)
+                    .accessibilityLabel("Search commits")
                     .help("Searches commit messages and authors (or a SHA). Add author:… or path:… to narrow it down.")
                 if !query.isEmpty {
                     Button { query = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }.buttonStyle(.plain).foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 7).padding(.vertical, 4)
-            .fluentTextField()
+            .fluentTextField(focused: searchFocused)
             OptionChip(title: "All", symbol: "arrow.triangle.branch", isOn: $allBranches)
                 .help("Show commits from all branches")
             OptionChip(title: "Graph", symbol: "point.3.connected.trianglepath.dotted", isOn: $showGraph)
                 .help("Show the commit graph")
         }
-        .padding(.horizontal, 8).padding(.bottom, 6)
+        .padding(.horizontal, Spacing.pane).padding(.bottom, Spacing.xs)
     }
 
     private var commitList: some View {
@@ -154,7 +153,7 @@ struct HistoryPaneView: View {
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .listRowInsets(showsGraph ? EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 8) : EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 8))
-                .listRowSeparator(showsGraph ? .hidden : .visible)
+                .listRowSeparator(.hidden)
                 .tag(commit.hash)
                 .onAppear { if index == commits.count - 1 { Task { await loadMore() } } }
             }
@@ -162,7 +161,7 @@ struct HistoryPaneView: View {
                 HStack { Spacer(); ProgressView().controlSize(.small); Spacer() }.listRowSeparator(.hidden)
             }
         }
-        .listStyle(.plain)
+        .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .contextMenu(forSelectionType: String.self) { hashes in
             if hashes.count == 1, let hash = hashes.first, let commit = commits.first(where: { $0.hash == hash }) {

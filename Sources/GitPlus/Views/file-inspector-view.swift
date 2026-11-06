@@ -19,7 +19,7 @@ struct FileInspectorView: View {
                     Text("History").tag(FileInspection.Mode.history)
                     Text("Blame").tag(FileInspection.Mode.blame)
                 }
-                .pickerStyle(.segmented)
+                .fluentSegmented()
                 .labelsHidden()
                 .fixedSize()
                 Button("Done", action: dismiss).keyboardShortcut(.cancelAction)
@@ -72,7 +72,7 @@ struct FileHistoryPane: View {
                 if let rev = revisions.first(where: { $0.id == selection }) {
                     FileDiffView(source: .revision(git, .commit(rev.commit)), file: rev.file).id(rev.id)
                 } else {
-                    ContentUnavailableView("Select a Commit", systemImage: "clock.arrow.circlepath")
+                    ContentUnavailableView("Select a commit", systemImage: "clock.arrow.circlepath")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -147,7 +147,7 @@ struct BlamePane: View {
                     if line.isUncommitted {
                         Text("Not committed yet").foregroundStyle(Theme.modified)
                     } else {
-                        Text(line.shortHash).foregroundStyle(Fluent.accent)
+                        Text(line.shortHash)
                         Text(line.author).lineLimit(1)
                         Spacer(minLength: 2)
                         Text(RelativeTime.string(line.date)).foregroundStyle(.secondary).lineLimit(1)

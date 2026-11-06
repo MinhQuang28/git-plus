@@ -89,13 +89,13 @@ struct OperationBannerView: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: conflicts > 0 ? "exclamationmark.triangle.fill" : "arrow.triangle.merge")
-                .foregroundStyle(Theme.bannerBorder)
+                .foregroundStyle(Fluent.glyph(.warning).color)
             VStack(alignment: .leading, spacing: 1) {
                 Text("\(operation.title) in progress").appFont(size: 13, weight: .semibold)
                 Text(conflicts > 0
                      ? "\(conflicts) conflicted file\(conflicts == 1 ? "" : "s"). Pick which branch's version to keep for each file, then continue."
                      : "All conflicts resolved. Continue to finish the \(operation.title.lowercased()).")
-                    .appFont(size: 12).foregroundStyle(.secondary)
+                    .appFont(size: 12)
             }
             Spacer()
             if operation == .rebase {
@@ -108,7 +108,6 @@ struct OperationBannerView: View {
             Button("Continue") { run("continue \(operation.rawValue)", "\(operation.title) completed") { try await $0.continueOperation(operation) } }
                 .buttonStyle(.fluentAccent)
                 .disabled(conflicts > 0)
-                .opacity(conflicts > 0 ? 0.6 : 1)
         }
         .buttonStyle(.fluent)
         .padding(.horizontal, 14).padding(.vertical, 10)
@@ -139,8 +138,8 @@ struct StashSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Stash Changes").appFont(.headline)
-            TextField("Message (optional)", text: $message).textFieldStyle(.roundedBorder)
-            Toggle("Include untracked files", isOn: $includeUntracked)
+            TextField("Message (optional)", text: $message).fluentTextBox()
+            Toggle("Include untracked files", isOn: $includeUntracked).tint(Fluent.accent)
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)

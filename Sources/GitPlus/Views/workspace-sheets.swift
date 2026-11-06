@@ -60,7 +60,7 @@ struct RemotesSheet: View {
             .formStyle(.grouped)
             HStack {
                 Spacer()
-                Button("Done", action: dismiss).keyboardShortcut(.defaultAction)
+                Button("Done", action: dismiss).keyboardShortcut(.defaultAction).buttonStyle(.fluentAccent)
             }
             .padding(Spacing.l)
         }
@@ -173,7 +173,7 @@ struct ActivityView: View {
                 Text("Activity").appFont(.title3, weight: .semibold)
                 Spacer()
                 Button("Clear Finished") { store.clearFinishedActivities() }.disabled(store.activities.allSatisfy(\.isRunning))
-                Button("Done", action: dismiss).keyboardShortcut(.defaultAction)
+                Button("Done", action: dismiss).keyboardShortcut(.defaultAction).buttonStyle(.fluentAccent)
             }
             .padding(Spacing.l)
             Divider()
@@ -190,7 +190,7 @@ struct ActivityView: View {
                         Text(item.repoName).foregroundStyle(.secondary)
                         Spacer()
                         Text(duration(item)).appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
-                        Text(item.started.formatted(date: .omitted, time: .standard)).appFont(.caption).foregroundStyle(.tertiary)
+                        Text(item.started.formatted(date: .omitted, time: .standard)).appFont(.caption).foregroundStyle(.secondary)
                     }
                     if let error = item.error {
                         Text(error)
@@ -204,7 +204,7 @@ struct ActivityView: View {
                 .padding(.vertical, Spacing.xxs)
             }
             .listStyle(.inset)
-            .overlay { if store.activities.isEmpty { ContentUnavailableView("No Activity Yet", systemImage: "list.bullet.rectangle") } }
+            .overlay { if store.activities.isEmpty { ContentUnavailableView("No activity yet", systemImage: "list.bullet.rectangle") } }
         }
         .frame(width: 620, height: 460)
     }

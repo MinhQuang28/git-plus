@@ -102,12 +102,12 @@ struct RepoWorkspaceView: View {
             // Like GitHub Desktop: conflicts appearing (merge, rebase, stash apply, …) open the resolve dialog.
             if old == 0, new > 0 { showConflicts = true }
         }
-        .sheet(isPresented: $showConflicts) { ConflictsSheet(repo: repo) { showConflicts = false } }
-        .sheet(isPresented: $showMerge) { MergeSheet(repo: repo) { showMerge = false } }
-        .sheet(isPresented: $showRemotes) { RemotesSheet(repo: repo) { showRemotes = false } }
+        .sheet(isPresented: $showConflicts) { ConflictsSheet(repo: repo) { showConflicts = false }.fluentDialog() }
+        .sheet(isPresented: $showMerge) { MergeSheet(repo: repo) { showMerge = false }.fluentDialog() }
+        .sheet(isPresented: $showRemotes) { RemotesSheet(repo: repo) { showRemotes = false }.fluentDialog() }
         .branchSwitchDialog(repoID: repo.id)
         .sheet(item: $inspection) { item in
-            FileInspectorView(repo: repo, path: item.path, mode: item.mode, remote: status?.remote) { inspection = nil }
+            FileInspectorView(repo: repo, path: item.path, mode: item.mode, remote: status?.remote) { inspection = nil }.fluentDialog()
         }
     }
 
@@ -149,7 +149,7 @@ struct RepoWorkspaceView: View {
             } else if files.count > 1 {
                 MultiSelectionView(repo: repo, files: files) { selectedChanges = [] }
             } else {
-                ContentUnavailableView(tree.isEmpty ? "No Local Changes" : "Select a File",
+                ContentUnavailableView(tree.isEmpty ? "No local changes" : "Select a file",
                                        systemImage: tree.isEmpty ? "checkmark.seal" : "doc.text.magnifyingglass",
                                        description: Text(tree.isEmpty ? "Your working directory is clean." : "Choose a file to see its changes. ⌘-click to select several."))
             }
@@ -158,14 +158,14 @@ struct RepoWorkspaceView: View {
                 CommitDetailView(repoURL: repo.url, target: target,
                                  commit: selectedCommits.count == 1 ? selectedCommits.first : nil, remote: status?.remote)
             } else {
-                ContentUnavailableView("Select a Commit", systemImage: "clock.arrow.circlepath",
+                ContentUnavailableView("Select a commit", systemImage: "clock.arrow.circlepath",
                                        description: Text("⌘-click or ⇧-click several commits to see their combined diff."))
             }
         case .stashes:
             if let entry = stashes.first(where: { $0.id == selectedStash }) {
                 StashDetailView(repo: repo, entry: entry).id(entry.id)
             } else {
-                ContentUnavailableView("No Stash Selected", systemImage: "tray")
+                ContentUnavailableView("No stash selected", systemImage: "tray")
             }
         }
     }

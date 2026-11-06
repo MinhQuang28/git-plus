@@ -110,7 +110,7 @@ struct ConflictsSheet: View {
         .listStyle(.inset)
         .overlay {
             if loaded && files.isEmpty && resolved.isEmpty {
-                ContentUnavailableView("No Conflicts", systemImage: "checkmark.seal")
+                ContentUnavailableView("No conflicts", systemImage: "checkmark.seal")
             }
         }
     }
@@ -131,9 +131,13 @@ struct ConflictsSheet: View {
             Menu {
                 resolveMenu(file, markers: count)
             } label: {
-                Text("Resolve")
+                HStack(spacing: Spacing.xs) {
+                    Text("Resolve")
+                    Image(systemName: "chevron.down").imageScale(.small)
+                }
             }
             .menuStyle(.button)
+            .buttonStyle(.fluent)
             .fixedSize()
         }
         .padding(.vertical, Spacing.xs)
@@ -267,7 +271,7 @@ struct ConflictFileView: View {
                 deletedConflict
             } else if blocks.isEmpty {
                 ContentUnavailableView {
-                    Label("No Conflict Markers", systemImage: "checkmark.seal")
+                    Label("No conflict markers", systemImage: "checkmark.seal")
                 } description: {
                     Text("This file no longer contains conflict markers.")
                 } actions: {
@@ -493,7 +497,7 @@ struct MergeSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: Spacing.s) {
                 Text("Merge into \(current)").appFont(.title3, weight: .semibold)
-                TextField("Filter branches", text: $filter).textFieldStyle(.roundedBorder)
+                TextField("Filter branches", text: $filter).fluentTextBox()
             }
             .padding(Spacing.l)
             List(candidates, id: \.self, selection: $selected) { name in
@@ -505,7 +509,7 @@ struct MergeSheet: View {
                 Picker("Strategy", selection: $strategy) {
                     ForEach(Strategy.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
-                .pickerStyle(.segmented)
+                .fluentSegmented()
                 .labelsHidden()
                 previewLabel
                 HStack {

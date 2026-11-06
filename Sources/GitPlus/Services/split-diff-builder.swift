@@ -65,6 +65,7 @@ enum DiffRenderer {
         let start = attr.characters.index(attr.startIndex, offsetBy: range.lowerBound)
         let end = attr.characters.index(attr.startIndex, offsetBy: range.upperBound)
         attr[start..<end].backgroundColor = color
+        attr[start..<end].foregroundColor = nil   // syntax colors fall below 4.5:1 on the stronger word tints
         text = attr
     }
 

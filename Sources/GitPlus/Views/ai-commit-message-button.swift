@@ -22,7 +22,7 @@ struct AICommitMessageButton: View {
             }
         }
         .buttonStyle(.borderless)
-        .foregroundStyle(enabled ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+        .foregroundStyle(.secondary)
         .disabled(!isWriting && !isAvailable)
         .help(isWriting ? "Stop writing the message"
               : amend ? "Not available while amending"

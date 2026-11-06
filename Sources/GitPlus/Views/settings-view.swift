@@ -13,6 +13,9 @@ struct SettingsView: View {
             AccountsSettingsView().tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag("accounts")
         }
         .frame(width: 540, height: 480)
+        // Windows forms: picker values in normal text; accent only on switches that are on.
+        .tint(.primary)
+        .toggleStyle(.fluentSwitch)
     }
 }
 
