@@ -22,7 +22,7 @@ struct GitPlusApp: App {
         }
 
         Settings {
-            SettingsView().scaledInterfaceText().fluentRootStyle()
+            SettingsView().scaledInterfaceText()
         }
     }
 }
@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSWindow.allowsAutomaticWindowTabbing = false   // frees ⌘T for the repository list
         NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        AppAppearance.current.apply()
         // Also accept folder paths passed as plain arguments: `GitPlus ~/code/foo`.
         let args = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }
         Task { @MainActor in

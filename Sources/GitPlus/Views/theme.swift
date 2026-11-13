@@ -82,3 +82,32 @@ enum Theme {
     ]
     static func lane(_ index: Int) -> Color { lanes[index % lanes.count] }
 }
+
+/// Settings → Appearance → Theme: follow macOS, or force light / dark for every window, sheet and alert.
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    static let key = "appearance"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// The saved choice (System when nothing was chosen yet).
+    static var current: AppAppearance {
+        AppAppearance(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system
+    }
+
+    @MainActor func apply() {
+        switch self {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+}

@@ -6,16 +6,21 @@ struct SettingsView: View {
     @AppStorage(SettingsView.tabKey) private var tab = "general"
 
     var body: some View {
+        // The root style goes on each pane, not on the TabView: a foreground style on the tab labels makes SwiftUI
+        // draw the toolbar icons in a fixed color for the system appearance (white on a light window, or the reverse)
+        // instead of leaving them to the window's own appearance.
         TabView(selection: $tab) {
-            GeneralSettingsView().tabItem { Label("General", systemImage: "gearshape") }.tag("general")
-            CommitSettingsView().tabItem { Label("Commit", systemImage: "text.badge.checkmark") }.tag("commit")
-            AISettingsView().tabItem { Label("AI", systemImage: "sparkles") }.tag("ai")
-            AccountsSettingsView().tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag("accounts")
+            pane(GeneralSettingsView()).tabItem { Label("General", systemImage: "gearshape") }.tag("general")
+            pane(CommitSettingsView()).tabItem { Label("Commit", systemImage: "text.badge.checkmark") }.tag("commit")
+            pane(AISettingsView()).tabItem { Label("AI", systemImage: "sparkles") }.tag("ai")
+            pane(AccountsSettingsView()).tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag("accounts")
         }
         .frame(width: 540, height: 480)
-        // Windows forms: picker values in normal text; accent only on switches that are on.
-        .tint(.primary)
-        .toggleStyle(.fluentSwitch)
+    }
+
+    /// Windows forms: picker values in normal text; accent only on switches that are on.
+    private func pane(_ content: some View) -> some View {
+        content.tint(.primary).toggleStyle(.fluentSwitch).fluentRootStyle()
     }
 }
 
@@ -30,10 +35,16 @@ struct GeneralSettingsView: View {
     @AppStorage("diffIgnoreWhitespace") private var ignoreWhitespace = false
     @AppStorage("historyGraph") private var historyGraph = false
     @AppStorage(UITextScale.key) private var textScale = UITextScale.standard.rawValue
+    @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system
 
     var body: some View {
         Form {
             Section("Appearance") {
+                Picker("Theme", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                }
+                .fluentSegmented()
+                .onChange(of: appearance) { _, choice in choice.apply() }
                 AccentPicker()
                 Picker("Text size", selection: $textScale) {
                     ForEach(UITextScale.allCases) { Text($0.title).tag($0.rawValue) }
