@@ -15,6 +15,7 @@ enum RepoTab: Int, CaseIterable {
 
 /// Windows 11 command bar for a repository: page selector + branch / sync / reviews / open-in commands.
 struct RepoCommandBar: View {
+    @Environment(WorkspaceStore.self) private var store
     let repo: RepoEntry
     let status: RepoStatus?
     @Binding var tab: RepoTab
@@ -23,7 +24,8 @@ struct RepoCommandBar: View {
 
     var body: some View {
         FluentCommandBar {
-            FluentSelectorBar(selection: $tab, items: RepoTab.allCases.map { ($0, label($0)) })
+            groupLink
+            FluentSelectorBar(selection: closingSwitcher($tab), items: RepoTab.allCases.map { ($0, label($0)) })
                 .help("⌘1 Changes · ⌘2 History · ⌘3 Stashes")
         } trailing: {
             BranchToolbarButton(repo: repo, branch: status?.branch ?? "–")
@@ -33,6 +35,25 @@ struct RepoCommandBar: View {
             }
             Divider().frame(height: 20).padding(.horizontal, Spacing.xs)
             OpenInMenu(repo: repo)
+        }
+    }
+
+    /// Way back to the overview of the group this repository lives in.
+    private var groupLink: some View {
+        let group = repo.groupID.flatMap { store.group($0) }
+        let name = group?.name ?? "Ungrouped"
+        return HStack(spacing: Spacing.xs) {
+            Button {
+                RepoActions.select(group.map { .group($0.id) } ?? .ungrouped)
+                RepoActions.post(.hideRepositoryPicker)
+            } label: {
+                Label(name, systemImage: "chevron.left").labelStyle(.titleAndIcon).lineLimit(1).frame(maxWidth: 160)
+            }
+            .buttonStyle(.fluentSubtle)
+            .fixedSize()
+            .help("Back to the \(name) overview")
+            .accessibilityLabel("Back to \(name) overview")
+            Divider().frame(height: 20).padding(.horizontal, Spacing.xs)
         }
     }
 
@@ -164,11 +185,13 @@ enum DivergedPrompt {
         alert.addButton(withTitle: "Pull with Merge")
         alert.addButton(withTitle: "Force Push…")
         alert.addButton(withTitle: "Cancel")
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: Task { await store.pull([id], mode: .rebase) }
-        case .alertSecondButtonReturn: Task { await store.pull([id], mode: .merge) }
-        case .alertThirdButtonReturn: ForcePushConfirmation.run(store, id)
-        default: break
+        Task {
+            switch await WindowAlert.run(alert) {
+            case .alertFirstButtonReturn: await store.pull([id], mode: .rebase)
+            case .alertSecondButtonReturn: await store.pull([id], mode: .merge)
+            case .alertThirdButtonReturn: ForcePushConfirmation.run(store, id)
+            default: break
+            }
         }
     }
 }

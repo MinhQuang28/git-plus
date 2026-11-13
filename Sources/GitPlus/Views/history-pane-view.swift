@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Left pane "History" tab: branch compare field + commit list with graph (multi-select → range diff).
+/// Left pane "History" tab: search + view options, commit list with graph (multi-select → range diff); "Compare" opens the branch compare field.
 /// History loads in pages as you scroll; the search box queries git (`author:` and `path:` narrow it down).
 struct HistoryPaneView: View {
     @Environment(WorkspaceStore.self) private var store
@@ -33,6 +33,8 @@ struct HistoryPaneView: View {
     @AppStorage("historyGraph") private var showGraph = false
     @State private var query = ""
     @State private var isSearching = false
+    /// The branch compare field is open (the "Compare" chip).
+    @State private var showCompare = false
 
     private var git: GitService { GitService(repo: repo.url) }
     private var revision: Int { store.revisions[repo.id] ?? 0 }
@@ -42,14 +44,23 @@ struct HistoryPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            compareField
-            // Suggestions appear only while typing, so an auto-focused field never hides the history.
-            if compareFocused && compareBranch == nil && !compareText.isEmpty {
-                branchSuggestions
-            } else {
-                if let compareBranch { compareTabs(compareBranch) } else { viewOptions }
+            // Search comes first; comparing with a branch is opt-in ("Compare").
+            if let compareBranch {
+                compareField
+                compareTabs(compareBranch)
                 commitList
+            } else {
+                viewOptions.padding(.top, Spacing.s)
+                if showCompare {
+                    compareField
+                    branchSuggestions
+                } else {
+                    commitList
+                }
             }
+        }
+        .onChange(of: showCompare) { _, open in
+            if open { DispatchQueue.main.async { compareFocused = true } } else { compareText = "" }
         }
         .task(id: revision) {
             branches = (try? await git.branches()) ?? BranchList()
@@ -74,17 +85,18 @@ struct HistoryPaneView: View {
             if let compareBranch {
                 Text(compareBranch).lineLimit(1)
                 Spacer()
-                Button { self.compareBranch = nil; compareText = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }
+                Button { self.compareBranch = nil; showCompare = false; compareText = "" } label: { Label("Stop comparing", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help("Stop comparing")
             } else {
-                TextField("Select Branch to Compare…", text: $compareText)
+                TextField("Compare with branch…", text: $compareText)
                     .textFieldStyle(.plain)
                     .focused($compareFocused)
-                    .onExitCommand { compareFocused = false; compareText = "" }
+                    .onExitCommand { showCompare = false }
             }
         }
         .fluentTextField(focused: compareFocused)
-        .padding(.horizontal, Spacing.pane).padding(.vertical, Spacing.s)
+        .padding(.horizontal, Spacing.pane).padding(.top, compareBranch == nil ? 0 : Spacing.s).padding(.bottom, Spacing.s)
     }
 
     private var branchSuggestions: some View {
@@ -138,6 +150,10 @@ struct HistoryPaneView: View {
                 .help("Show commits from all branches")
             OptionChip(title: "Graph", symbol: "point.3.connected.trianglepath.dotted", isOn: $showGraph)
                 .help("Show the commit graph")
+            OptionChip(title: "Compare", symbol: "arrow.left.arrow.right", isOn: $showCompare)
+                .labelStyle(.iconOnly)
+                .help("Compare with another branch: commits you are behind or ahead of it")
+                .accessibilityLabel("Compare with branch")
         }
         .padding(.horizontal, Spacing.pane).padding(.bottom, Spacing.xs)
     }

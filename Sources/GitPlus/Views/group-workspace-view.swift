@@ -1,12 +1,11 @@
 import SwiftUI
 
-/// Group layout: [Repositories | Activity] column + dashboard table or commit detail.
+/// Group layout: recent-activity column + the group overview (or the commit picked in the activity).
 struct GroupWorkspaceView: View {
     @Environment(WorkspaceStore.self) private var store
     let groupID: UUID?
     @Binding var selection: SidebarSelection?
 
-    @AppStorage("groupTab") private var tab = 0
     let title: String
     @State private var activity: [RepoCommit] = []
     @State private var sparklines: [UUID: [Int]] = [:]
@@ -21,11 +20,9 @@ struct GroupWorkspaceView: View {
             commandBar
             HStack(spacing: 0) {
                 ResizableColumn("width.leftPane", initial: 320, range: 260...520, divider: false) {
-                    SwitcherColumn {
-                        if tab == 1 { activityList } else { repoList }
-                    }
+                    SwitcherColumn { activityList }
                 }
-                main.frame(maxWidth: .infinity, maxHeight: .infinity).fluentContentLayer()
+                main.frame(maxWidth: .infinity, maxHeight: .infinity).dismissesSwitcher().fluentContentLayer()
             }
         }
         .navigationTitle(title)
@@ -36,7 +33,8 @@ struct GroupWorkspaceView: View {
         let ids = repos.map(\.id)
         let busy = ids.contains { store.busy.contains($0) }
         return FluentCommandBar {
-            FluentSelectorBar(selection: $tab, items: [(0, "Repositories"), (1, "Activity")])
+            Text(title).appFont(size: 13, weight: .semibold).lineLimit(1).padding(.leading, Spacing.s)
+            Text(repos.count == 1 ? "1 repository" : "\(repos.count) repositories").appFont(.callout).foregroundStyle(.secondary)
         } trailing: {
             Button { Task { await store.fetch(ids) } } label: {
                 Label("Fetch All", systemImage: "arrow.triangle.2.circlepath").labelStyle(.titleAndIcon)
@@ -53,48 +51,52 @@ struct GroupWorkspaceView: View {
         }
     }
 
-    private var repoList: some View {
-        List(repos) { repo in
-            Button { selection = .repo(repo.id) } label: {
-                RepoRowView(repo: repo, status: store.statuses[repo.id], isBusy: store.busy.contains(repo.id))
-                    .contentShape(Rectangle())
+    private var activityList: some View {
+        VStack(spacing: 0) {
+            Text("Recent Activity").appFont(size: 13, weight: .semibold)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, Spacing.m).padding(.top, Spacing.s).padding(.bottom, Spacing.xs)
+            List(activity, selection: $selectedActivity) { item in
+                CommitListRow(commit: item.commit, repoName: item.repoName).listRowSeparator(.hidden)
             }
-            .buttonStyle(.plain)
-            .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .overlay {
-            if repos.isEmpty {
-                ContentUnavailableView {
-                    Label("No repositories", systemImage: "folder.badge.plus")
-                } description: {
-                    Text("Add a local repository or move one from another group.")
-                } actions: {
-                    AddToGroupMenu(groupID: groupID) { Text("Add Repository…") }.fixedSize()
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .overlay {
+                if isLoading && activity.isEmpty {
+                    ProgressView()
+                } else if activity.isEmpty {
+                    Text("No recent commits").foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    private var activityList: some View {
-        List(activity, selection: $selectedActivity) { item in
-            CommitListRow(commit: item.commit, repoName: item.repoName).listRowSeparator(.hidden)
-        }
-        .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .overlay { if isLoading && activity.isEmpty { ProgressView() } }
-    }
-
+    /// The overview, or the commit picked in the activity list (with a way back to the overview).
     @ViewBuilder private var main: some View {
-        if tab == 0 {
-            GroupDashboardView(repos: repos, sparklines: sparklines, selection: $selection)
-        } else if let item = activity.first(where: { $0.id == selectedActivity }), let repo = store.repo(item.repoID) {
-            CommitDetailView(repoURL: repo.url, target: .commit(item.commit), commit: item.commit, remote: store.statuses[repo.id]?.remote)
-                .id(item.id)
+        if let item = activity.first(where: { $0.id == selectedActivity }), let repo = store.repo(item.repoID) {
+            VStack(spacing: 0) {
+                HStack(spacing: Spacing.s) {
+                    Button { selectedActivity = nil } label: { Label("Overview", systemImage: "chevron.left").labelStyle(.titleAndIcon) }
+                        .buttonStyle(.fluentSubtle)
+                        .help("Back to the group overview")
+                    Spacer()
+                    Button("Open \(repo.name)") { selection = .repo(repo.id) }.buttonStyle(.fluentSubtle)
+                }
+                .padding(.horizontal, Spacing.s).padding(.vertical, Spacing.xs)
+                Divider()
+                CommitDetailView(repoURL: repo.url, target: .commit(item.commit), commit: item.commit, remote: store.statuses[repo.id]?.remote)
+                    .id(item.id)
+            }
+        } else if repos.isEmpty {
+            ContentUnavailableView {
+                Label("No repositories", systemImage: "folder.badge.plus")
+            } description: {
+                Text("Add a local repository or move one from another group.")
+            } actions: {
+                AddToGroupMenu(groupID: groupID) { Text("Add Repository…") }.fixedSize()
+            }
         } else {
-            ContentUnavailableView("Select a commit", systemImage: "clock.arrow.circlepath",
-                                   description: Text("Recent commits from every repository in this group."))
+            GroupDashboardView(repos: repos, sparklines: sparklines, selection: $selection)
         }
     }
 

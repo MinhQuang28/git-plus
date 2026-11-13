@@ -3,6 +3,7 @@ import SwiftUI
 
 extension Notification.Name {
     static let showRepositoryPicker = Notification.Name("gitplus.showRepositoryPicker")
+    static let hideRepositoryPicker = Notification.Name("gitplus.hideRepositoryPicker")
     static let showBranchPicker = Notification.Name("gitplus.showBranchPicker")
     static let showCommandPalette = Notification.Name("gitplus.showCommandPalette")
     static let showClone = Notification.Name("gitplus.showClone")
@@ -22,7 +23,11 @@ enum RepoActions {
     }
 
     static func select(_ selection: SidebarSelection) { UserDefaults.standard.set(selection.rawValue, forKey: "selection") }
-    static func show(_ tab: RepoTab) { UserDefaults.standard.set(tab.rawValue, forKey: "repoTab") }
+    /// Switches the repository page; the repository list closes so the page's own list is visible.
+    static func show(_ tab: RepoTab) {
+        UserDefaults.standard.set(tab.rawValue, forKey: "repoTab")
+        post(.hideRepositoryPicker)
+    }
     static func post(_ name: Notification.Name) { NotificationCenter.default.post(name: name, object: nil) }
 
     static func open(_ repo: RepoEntry, editor: Bool) {
@@ -57,6 +62,7 @@ enum RepoActions {
     static func undoLastCommit(_ store: WorkspaceStore, _ id: UUID) {
         // Undoing a pushed commit only removes it locally: the branch falls behind its upstream and the
         // next pull brings the commit straight back. Say so before doing it (GitHub Desktop refuses outright).
+        var warning: NSAlert?
         if let status = store.statuses[id], status.upstream != nil, status.ahead == 0 {
             let alert = NSAlert()
             alert.messageText = "The last commit is already pushed"
@@ -67,9 +73,12 @@ enum RepoActions {
             alert.addButton(withTitle: "Undo Locally")
             alert.addButton(withTitle: "Cancel")
             alert.buttons.first?.hasDestructiveAction = true
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            warning = alert
         }
-        Task { await store.perform(id, "undo commit", success: "Undid last commit — its changes are staged") { try await $0.undoLastCommit() } }
+        Task {
+            if let warning { guard await WindowAlert.run(warning) == .alertFirstButtonReturn else { return } }
+            await store.perform(id, "undo commit", success: "Undid last commit — its changes are staged") { try await $0.undoLastCommit() }
+        }
     }
 }
 
@@ -163,6 +172,15 @@ struct AppCommands: Commands {
     @MainActor private func confirmForcePush(_ id: UUID) { ForcePushConfirmation.run(store, id) }
 }
 
+/// Shows an alert as a sheet on the window, like the SwiftUI confirmation dialogs (not a separate modal window).
+@MainActor
+enum WindowAlert {
+    static func run(_ alert: NSAlert) async -> NSApplication.ModalResponse {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return alert.runModal() }
+        return await alert.beginSheetModal(for: window)
+    }
+}
+
 /// "Force push?" confirmation, shared by the menu, the sync button and the command palette.
 @MainActor
 enum ForcePushConfirmation {
@@ -176,7 +194,9 @@ enum ForcePushConfirmation {
         alert.addButton(withTitle: "Force Push")
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        Task { await store.push(id, force: true) }
+        Task {
+            guard await WindowAlert.run(alert) == .alertFirstButtonReturn else { return }
+            await store.push(id, force: true)
+        }
     }
 }

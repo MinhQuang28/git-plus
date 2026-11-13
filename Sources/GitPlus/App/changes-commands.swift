@@ -68,8 +68,8 @@ struct ChangesCommands: Commands {
         alert.addButton(withTitle: "Discard All Changes")
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
         Task {
+            guard await WindowAlert.run(alert) == .alertFirstButtonReturn else { return }
             await store.perform(id, "discard all", success: "Discarded all changes", undo: { try await $0.popLatestStash() }) {
                 try await $0.discardAll()
             }

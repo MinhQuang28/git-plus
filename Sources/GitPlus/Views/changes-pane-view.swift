@@ -231,7 +231,7 @@ struct ChangesPaneView: View {
     }
 }
 
-/// File row: type icon, name over dimmed folder, stage/unstage button on hover, status letter.
+/// File row: type icon, name over dimmed folder, stage/unstage button, status letter.
 struct WorkingFileRow: View {
     let file: ChangedFile
     var showsFolder = true
@@ -248,10 +248,9 @@ struct WorkingFileRow: View {
             if file.additions + file.deletions > 0 {
                 Text("+\(file.additions) −\(file.deletions)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
             }
-            // Fixed slot: the button fades in/out without shifting the row.
+            // Always there (dimmed until the row is hovered or selected), so staging doesn't have to be discovered.
             IconButton(symbol: icon, help: help, action: toggle)
-                .opacity(showButton ? 1 : 0)
-                .allowsHitTesting(showButton)
+                .opacity(showButton ? 1 : 0.45)
                 .accessibilityHidden(true)
             FileStatusLetter(status: file.status)
         }

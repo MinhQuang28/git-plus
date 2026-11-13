@@ -129,7 +129,7 @@ struct RepoWorkspaceView: View {
                     }
                 }
             }
-            main.frame(maxWidth: .infinity, maxHeight: .infinity).fluentContentLayer()
+            main.frame(maxWidth: .infinity, maxHeight: .infinity).dismissesSwitcher().fluentContentLayer()
         }
     }
 

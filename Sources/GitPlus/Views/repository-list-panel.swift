@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Drop-down repository list (GitHub Desktop style): filter + Add, one section per group, Ungrouped. Click a group title to open its overview, double-click to rename, drag repos onto it.
+/// Drop-down repository list (GitHub Desktop style): filter + Add, one section per group, Ungrouped. Click a group title to fold it, "Overview" opens the group, drag repos onto it (rename from the context menu).
 struct RepositoryListPanel: View {
     @Environment(WorkspaceStore.self) private var store
     @Environment(SwitcherState.self) private var switcher
@@ -138,21 +138,27 @@ struct RepositoryListPanel: View {
                 Text(name).appFont(size: 13, weight: .semibold)
                 Text("\(count)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
                 Spacer()
-                Image(systemName: "rectangle.grid.1x2").appFont(.caption).foregroundStyle(.secondary)
-                    .help("Open group overview")
+                Button { pick(key) } label: {
+                    HStack(spacing: 2) {
+                        Text("Overview")
+                        Image(systemName: "chevron.right").imageScale(.small)
+                    }
+                    .appFont(.caption, weight: .medium)
+                }
+                .buttonStyle(.fluentSubtle)
+                .help("Open the \(name) overview")
             }
         }
         .padding(.horizontal, 10).padding(.vertical, Spacing.xs)
         .contentShape(Rectangle())
-        .onTapGesture(count: 2) { startRename(key.rawValue, name) }
-        .onTapGesture { pick(key) }
-        .fluentListItem(selected: false)
+        .onTapGesture { if renamingKey != key.rawValue { toggleCollapsed(key) } }
+        .fluentListItem(selected: selection == key)
         .padding(.top, Spacing.s)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(name) group, \(count) repositories")
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { pick(key) }
-        .accessibilityAction(named: isCollapsed(key) ? "Expand" : "Collapse") { toggleCollapsed(key) }
+        .accessibilityAction { toggleCollapsed(key) }
+        .accessibilityAction(named: "Open Group Overview") { pick(key) }
         .dropDestination(for: String.self) { items, _ in
             store.move(repoIDs: items.compactMap(UUID.init(uuidString:)), to: groupID)
             return true

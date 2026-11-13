@@ -16,11 +16,15 @@ enum DiffStagingActions {
             alert.addButton(withTitle: "Discard")
             alert.addButton(withTitle: "Cancel")
             alert.buttons.first?.hasDestructiveAction = true
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            Task {
+                guard await WindowAlert.run(alert) == .alertFirstButtonReturn,
+                      let patch = PatchBuilder.patch(raw: raw, selected: ids, reverse: true) else { return }
+                store.discardLines(ids.count, path: path, patch: patch, in: repoID)
+            }
+            return
         }
         // Stage applies forward to the index; unstage/discard apply the selection in reverse.
         guard let patch = PatchBuilder.patch(raw: raw, selected: ids, reverse: action != .stage) else { return }
-        if action == .discard { return store.discardLines(ids.count, path: path, patch: patch, in: repoID) }
         // Stage and unstage both work on the index; unstage applies the selection in reverse.
         let lines = "\(ids.count) line\(ids.count == 1 ? "" : "s")"
         let unstage = action == .unstage

@@ -1,30 +1,5 @@
 import SwiftUI
 
-/// Compact repo summary: name, branch, ahead/behind, dirty marker.
-struct RepoRowView: View {
-    let repo: RepoEntry
-    let status: RepoStatus?
-    let isBusy: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ProviderIcon(provider: status?.remote?.provider)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(repo.name).lineLimit(1)
-                if let status {
-                    Text(status.branch).appFont(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 4)
-            if isBusy {
-                ProgressView().controlSize(.small)
-            } else if let status {
-                SyncBadge(status: status)
-            }
-        }
-    }
-}
-
 struct SyncBadge: View {
     let status: RepoStatus
 

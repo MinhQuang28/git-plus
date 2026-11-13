@@ -19,17 +19,53 @@ struct SwitcherColumn<Content: View>: View {
         VStack(spacing: 0) {
             RepositorySwitcherHeader(forceExpanded: forceExpanded)
             Divider()
-            // Quick cross-fade between the column content and the list (no sliding).
+            // Quick cross-fade between the column content and the list (no sliding). The content stays
+            // mounted under the list, so its search, scroll position and selection survive opening the list.
+            let isOpen = switcher.isExpanded || forceExpanded
             ZStack {
-                if switcher.isExpanded || forceExpanded {
-                    RepositoryListPanel().transition(.opacity)
-                } else {
-                    content.transition(.opacity)
-                }
+                content
+                    .opacity(isOpen ? 0 : 1)
+                    .disabled(isOpen)               // no clicks or keyboard focus while hidden
+                    .accessibilityHidden(isOpen)
+                if isOpen { RepositoryListPanel().transition(.opacity) }
             }
             .frame(maxHeight: .infinity)
         }
         .animation(.easeOut(duration: 0.15), value: switcher.isExpanded)
+    }
+}
+
+/// A page selector binding that also closes the repository list — clicking a page (even the current
+/// one) while the list is open shows that page's own list instead of leaving the repository list up.
+@MainActor
+func closingSwitcher<Value>(_ binding: Binding<Value>) -> Binding<Value> {
+    Binding(get: { binding.wrappedValue }, set: {
+        binding.wrappedValue = $0
+        RepoActions.post(.hideRepositoryPicker)
+    })
+}
+
+extension View {
+    /// Main area beside a `SwitcherColumn`: dimmed while the repository list is open; a click closes the list.
+    func dismissesSwitcher() -> some View { modifier(SwitcherDismissLayer()) }
+}
+
+private struct SwitcherDismissLayer: ViewModifier {
+    @Environment(SwitcherState.self) private var switcher
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if switcher.isExpanded {
+                    Color.black.opacity(0.12)
+                        .contentShape(Rectangle())
+                        .onTapGesture { switcher.isExpanded = false }
+                        .transition(.opacity)
+                        .accessibilityLabel("Close repository list")
+                        .accessibilityAddTraits(.isButton)
+                }
+            }
+            .animation(.easeOut(duration: 0.15), value: switcher.isExpanded)
     }
 }
 
@@ -74,6 +110,7 @@ struct RepositorySwitcherHeader: View {
         .onHover { hovering = $0 }
         .help("Repositories and groups (⌘T)")
         .onReceive(NotificationCenter.default.publisher(for: .showRepositoryPicker)) { _ in switcher.isExpanded.toggle() }
+        .onReceive(NotificationCenter.default.publisher(for: .hideRepositoryPicker)) { _ in switcher.isExpanded = false }
     }
 
     private var caption: String {
