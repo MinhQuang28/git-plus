@@ -101,3 +101,39 @@ final class GitParsersTests: XCTestCase {
         XCTAssertEqual(try ProviderJSON.gitlab(Data("\n".utf8)).count, 0)
     }
 }
+
+final class AuthStatusParserTests: XCTestCase {
+    func testGlabWithOneFailingAndOneSignedInHost() {
+        let out = """
+        gitlab.com
+          x gitlab.com: API call failed: GET https://gitlab.com/api/v4/user: 401 {message: 401 Unauthorized}
+          ✓ Git operations for gitlab.com configured to use ssh protocol.
+          ! No token found (checked config file, keyring, and environment variables).
+        gitlab.example.vn
+          ✓ Logged in to gitlab.example.vn as someone (keyring)
+          ✓ REST API Endpoint: https://gitlab.example.vn/api/v4/
+
+           ERROR
+
+          x could not authenticate to one or more of the configured GitLab instances.
+        """
+        XCTAssertEqual(AuthStatusParser.hosts(out), [
+            AuthHostStatus(host: "gitlab.com", user: nil),
+            AuthHostStatus(host: "gitlab.example.vn", user: "someone"),
+        ])
+    }
+
+    func testGhSignedIn() {
+        let out = """
+        github.com
+          ✓ Logged in to github.com account someone (keyring)
+          - Active account: true
+          - Git operations protocol: ssh
+        """
+        XCTAssertEqual(AuthStatusParser.hosts(out), [AuthHostStatus(host: "github.com", user: "someone")])
+    }
+
+    func testNoHosts() {
+        XCTAssertEqual(AuthStatusParser.hosts("You are not logged into any GitHub hosts. To log in, run: gh auth login"), [])
+    }
+}

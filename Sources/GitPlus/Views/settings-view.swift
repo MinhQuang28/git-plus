@@ -83,7 +83,7 @@ struct GeneralSettingsView: View {
 
 /// Settings → shows `gh auth status` / `glab auth status`.
 struct AccountsSettingsView: View {
-    @State private var results: [String: (ok: Bool, message: String)] = [:]
+    @State private var results: [String: (ok: Bool, hosts: [AuthHostStatus], message: String)] = [:]
 
     var body: some View {
         Form {
@@ -91,12 +91,27 @@ struct AccountsSettingsView: View {
                 Section(cli == "gh" ? "GitHub (gh)" : "GitLab (glab)") {
                     if let r = results[cli] {
                         Label(r.ok ? "Authenticated" : "Not ready", systemImage: r.ok ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(r.ok ? .green : .red)
-                        Text(r.message).appFont(.caption, design: .monospaced).textSelection(.enabled)
+                            .foregroundStyle(r.ok ? Theme.added : Theme.deleted)
+                        // One row per host: a host without a token (e.g. gitlab.com next to a company GitLab) is fine.
+                        ForEach(r.hosts) { host in
+                            LabeledContent {
+                                Text(host.user ?? "Not signed in").foregroundStyle(.secondary)
+                            } label: {
+                                Label(host.host, systemImage: host.isSignedIn ? "checkmark.circle.fill" : "minus.circle")
+                                    .foregroundStyle(host.isSignedIn ? Theme.added : Color.secondary)
+                            }
+                        }
+                        DisclosureGroup("Details") {
+                            Text(r.message).appFont(.caption, design: .monospaced).textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     } else {
                         ProgressView().controlSize(.small)
                     }
-                    Text("Run `\(cli) auth login` in Terminal to sign in.").appFont(.subheadline).foregroundStyle(.secondary)
+                    Text(cli == "glab"
+                         ? "Run `glab auth login` in Terminal to sign in (add `--hostname your.gitlab.host` for a self-hosted GitLab)."
+                         : "Run `gh auth login` in Terminal to sign in.")
+                        .appFont(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }

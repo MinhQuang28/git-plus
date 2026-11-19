@@ -56,17 +56,20 @@ struct ProviderCLIService: Sendable {
         _ = try await ProcessRunner.run(cli, [provider == .github ? "pr" : "mr", "checkout", String(number)], in: repo)
     }
 
-    /// Returns `auth status` output of the CLI (stdout+stderr are both informative).
-    static func authStatus(_ cli: String) async -> (ok: Bool, message: String) {
-        guard await ProcessRunner.isAvailable(cli) else { return (false, "\(cli) is not installed") }
+    /// `auth status` of the CLI: the signed-in hosts plus the raw output (stdout and stderr are both informative).
+    /// Usable when at least one host is signed in, even if another configured host fails.
+    static func authStatus(_ cli: String) async -> (ok: Bool, hosts: [AuthHostStatus], message: String) {
+        guard await ProcessRunner.isAvailable(cli) else { return (false, [], "\(cli) is not installed") }
+        let output: String
         do {
-            let out = try await ProcessRunner.run(cli, ["auth", "status"])
-            return (true, out)
+            output = try await ProcessRunner.run(cli, ["auth", "status"])
         } catch let error as CommandError {
-            return (false, error.stderr)
+            output = [error.stdout, error.stderr].filter { !$0.isEmpty }.joined(separator: "\n")
         } catch {
-            return (false, error.localizedDescription)
+            return (false, [], error.localizedDescription)
         }
+        let hosts = AuthStatusParser.hosts(output)
+        return (hosts.contains(where: \.isSignedIn), hosts, output)
     }
 }
 
