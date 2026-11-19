@@ -31,11 +31,11 @@ struct RepoToolbar: ToolbarContent {
             .pickerStyle(.segmented)
             .help("⌘1 Changes · ⌘2 History · ⌘3 Stashes")
         }
+        ToolbarItem(placement: .primaryAction) { SyncToolbarButton(repo: repo, status: status) }
         ToolbarItem(placement: .primaryAction) {
             BranchToolbarButton(repo: repo, branch: status?.branch ?? "–")
         }
-        ToolbarItem(placement: .primaryAction) { SyncToolbarButton(repo: repo, status: status) }
-        // Flexible spacer keeps branch + sync in place and pushes reviews and "Open in" to the trailing edge.
+        // Flexible spacer keeps sync + branch in place and pushes reviews and "Open in" to the trailing edge.
         ToolbarSpacer(.flexible, placement: .primaryAction)
         if let provider = status?.remote?.provider, provider != .other {
             ToolbarItem(placement: .primaryAction) { ReviewsToolbarButton(repo: repo, provider: provider) }
