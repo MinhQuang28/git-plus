@@ -5,22 +5,32 @@ struct SettingsView: View {
     static let tabKey = "settingsTab"
     @AppStorage(SettingsView.tabKey) private var tab = "general"
 
-    var body: some View {
-        // The root style goes on each pane, not on the TabView: a foreground style on the tab labels makes SwiftUI
-        // draw the toolbar icons in a fixed color for the system appearance (white on a light window, or the reverse)
-        // instead of leaving them to the window's own appearance.
-        TabView(selection: $tab) {
-            pane(GeneralSettingsView()).tabItem { Label("General", systemImage: "gearshape") }.tag("general")
-            pane(CommitSettingsView()).tabItem { Label("Commit", systemImage: "text.badge.checkmark") }.tag("commit")
-            pane(AISettingsView()).tabItem { Label("AI", systemImage: "sparkles") }.tag("ai")
-            pane(AccountsSettingsView()).tabItem { Label("Accounts", systemImage: "person.crop.circle") }.tag("accounts")
-        }
-        .frame(width: 540, height: 480)
-    }
+    private static let tabs = [("general", "General"), ("commit", "Commit"), ("ai", "AI"), ("accounts", "Accounts")]
 
-    /// Windows forms: picker values in normal text; accent only on switches that are on.
-    private func pane(_ content: some View) -> some View {
-        content.tint(.primary).toggleStyle(.fluentSwitch).fluentRootStyle()
+    var body: some View {
+        // The app's own selector bar instead of the system toolbar tabs: the selection follows the color
+        // template (toolbar tabs always use the system accent) and the window sits on the template's surfaces.
+        VStack(spacing: 0) {
+            FluentSelectorBar(selection: $tab, items: Self.tabs.map { (value: $0.0, title: $0.1) })
+                .padding(.vertical, Spacing.xs)
+            Divider()
+            Group {
+                switch tab {
+                case "commit": CommitSettingsView()
+                case "ai": AISettingsView()
+                case "accounts": AccountsSettingsView()
+                default: GeneralSettingsView()
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Fluent.layer)
+            // Windows forms: picker values in normal text; accent only on switches that are on.
+            .tint(.primary)
+            .toggleStyle(.fluentSwitch)
+        }
+        .frame(width: 540, height: 520)
+        .background(Fluent.mica)
     }
 }
 
@@ -45,6 +55,7 @@ struct GeneralSettingsView: View {
                 }
                 .fluentSegmented()
                 .onChange(of: appearance) { _, choice in choice.apply() }
+                ColorTemplatePicker()
                 AccentPicker()
                 Picker("Text size", selection: $textScale) {
                     ForEach(UITextScale.allCases) { Text($0.title).tag($0.rawValue) }

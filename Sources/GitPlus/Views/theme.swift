@@ -45,7 +45,8 @@ enum Theme {
     static let barDivider = dynamic(light: hex(0xd0d7de), dark: hex(0x30363d))
     static let banner = dynamic(light: hex(0xfff8c5), dark: hex(0x3b2e0a))
 
-    static let paneBackground = Color(nsColor: .windowBackgroundColor)
+    /// Recessed bands inside the content layer (commit header, conflict blocks): the template's window base.
+    static var paneBackground: Color { Fluent.mica }
     static let headerBackground = Color.primary.opacity(0.045)
     static let separator = Color(nsColor: .separatorColor)
 
@@ -57,7 +58,7 @@ enum Theme {
     static let removedGutter = dynamic(light: hex(0xffd7d5), dark: hex(0x663432))
     static let removedWord = dynamic(light: hex(0xffa8a8), dark: hex(0x863b37))
     static let hunkLine = dynamic(light: hex(0xeef5ff), dark: hex(0x2a3442))
-    static let contextLine = dynamic(light: hex(0xffffff), dark: hex(0x282828))
+    static var contextLine: Color { AccentSettings.shared.template.palette.contextLine }
     static let gutter = Color.primary.opacity(0.035)
     static let gutterText = Color.primary.opacity(0.65)   // AA on every diff tint, unlike .secondary
     static let emptySide = Color.primary.opacity(0.03)

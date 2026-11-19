@@ -22,7 +22,7 @@ struct GitPlusApp: App {
         }
 
         Settings {
-            SettingsView().scaledInterfaceText()
+            SettingsView().scaledInterfaceText().fluentRootStyle()
         }
     }
 }

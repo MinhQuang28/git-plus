@@ -20,12 +20,13 @@ enum Fluent {
 
     // Surfaces.
     // Base (navigation, commands) is darker; the content layer is lighter, so the working area reads first.
-    static let mica = c(0xEEEEEE, dark: 0x1C1C1C)
-    static let layer = c(0xFBFBFB, dark: 0x282828)
+    // These follow the color template; reading them in a view body tracks changes, like the accent.
+    static var mica: Color { AccentSettings.shared.template.palette.mica }
+    static var layer: Color { AccentSettings.shared.template.palette.layer }
+    static var acrylicTint: Color { AccentSettings.shared.template.palette.acrylicTint }
     static let card = c(0xFFFFFF, 0.7, dark: 0xFFFFFF, 0.05)
     static let cardStroke = c(0x000000, 0.08, dark: 0xFFFFFF, 0.07)
     static let flyoutStroke = c(0x000000, 0.06, dark: 0x000000, 0.2)
-    static let acrylicTint = c(0xFCFCFC, 0.85, dark: 0x2C2C2C, 0.96)
     static let shadow = c(0x000000, 0.14, dark: 0x000000, 0.26)
 
     // Controls (ControlFillColor* / ControlStrokeColor*).

@@ -2,18 +2,18 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// The user's accent color (Settings → General → Appearance). `nil` = default indigo,
-/// which adapts to light/dark; a custom color is used as-is in both appearances.
+/// The user's color template and accent (Settings → General → Appearance). A `nil` custom accent means the
+/// template's own, which adapts to light/dark; a custom color is used as-is in both appearances.
 /// Observable, so every view body that reads `Fluent.accent` redraws when it changes.
 @Observable
 final class AccentSettings: @unchecked Sendable {
     static let shared = AccentSettings()
     private static let key = "accentRGB"
 
-    /// Default accent: indigo (#4F46E5 light / #6559FF dark). White text holds 4.5:1 on both, the selection pill
-    /// holds 3:1 on Mica and on the content layer, and its hue stays clear of every status color.
-    static let defaultColor = Theme.dynamic(light: NSColor(srgbRed: 0x4F / 255, green: 0x46 / 255, blue: 0xE5 / 255, alpha: 1),
-                                            dark: NSColor(srgbRed: 0x65 / 255, green: 0x59 / 255, blue: 0xFF / 255, alpha: 1))
+    /// Surfaces and default accent (see `ColorTemplate`).
+    var template: ColorTemplate {
+        didSet { UserDefaults.standard.set(template.rawValue, forKey: ColorTemplate.key) }
+    }
 
     /// Custom color as sRGB components, persisted as "r,g,b".
     var custom: NSColor? {
@@ -26,7 +26,7 @@ final class AccentSettings: @unchecked Sendable {
         }
     }
 
-    var color: Color { custom.map { Color(nsColor: $0) } ?? Self.defaultColor }
+    var color: Color { custom.map { Color(nsColor: $0) } ?? template.palette.accent }
 
     /// Text on an accent fill: whichever of black or white contrasts more (they tie at luminance 0.179).
     var onColor: Color {
@@ -37,6 +37,7 @@ final class AccentSettings: @unchecked Sendable {
     }
 
     private init() {
+        template = ColorTemplate(rawValue: UserDefaults.standard.string(forKey: ColorTemplate.key) ?? "") ?? .indigo
         let parts = UserDefaults.standard.string(forKey: Self.key)?.split(separator: ",").compactMap { Double($0) } ?? []
         if parts.count == 3, parts.allSatisfy({ (0...1).contains($0) }) {
             custom = NSColor(srgbRed: parts[0], green: parts[1], blue: parts[2], alpha: 1)
@@ -60,7 +61,7 @@ struct AccentPicker: View {
             if settings.custom != nil {
                 Button("Reset") { settings.custom = nil }
                     .controlSize(.small)
-                    .help("Back to the default indigo")
+                    .help("Back to the template's accent")
             }
             ColorPicker("Accent color", selection: selection, supportsOpacity: false)
                 .labelsHidden()
