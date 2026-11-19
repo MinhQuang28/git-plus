@@ -60,22 +60,21 @@ struct RepoWorkspaceView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
-                SwitcherColumn {
-                    VStack(spacing: 0) {
-                        RepoStatusHeader(repo: repo, status: status)
-                        Group {
-                            switch tab {
-                            case .changes: ChangesPaneView(repo: repo, tree: tree, selection: $selectedChanges)
-                            case .history: HistoryPaneView(repo: repo, remote: status?.remote, selected: $selectedCommits)
-                            case .stashes: StashListView(stashes: stashes, selection: $selectedStash)
-                            }
+            ResizableColumn("width.leftPane", initial: 320, range: 260...520, gap: true) {
+                VStack(spacing: 0) {
+                    RepoStatusHeader(repo: repo, status: status)
+                    Group {
+                        switch tab {
+                        case .changes: ChangesPaneView(repo: repo, tree: tree, selection: $selectedChanges)
+                        case .history: HistoryPaneView(repo: repo, remote: status?.remote, selected: $selectedCommits)
+                        case .stashes: StashListView(stashes: stashes, selection: $selectedStash)
                         }
-                        .frame(maxHeight: .infinity)
                     }
+                    .frame(maxHeight: .infinity)
                 }
+                .panel()
             }
-            main.frame(maxWidth: .infinity, maxHeight: .infinity)
+            main.frame(maxWidth: .infinity, maxHeight: .infinity).panel()
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             if let op = status?.operation {

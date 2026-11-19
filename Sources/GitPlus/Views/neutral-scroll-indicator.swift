@@ -32,7 +32,7 @@ private struct NeutralScrollIndicator: ViewModifier {
             let active = hovering || dragStartOffset != nil
             Capsule()
                 .fill(Color(nsColor: .secondaryLabelColor).opacity(active ? 0.9 : 0.6))
-                .frame(width: active ? 9 : 6, height: length)
+                .frame(width: active ? 7 : 4, height: length)   // as thin as the system overlay scroller
                 .padding(.trailing, inset)
                 .offset(y: inset + (track - length) * progress)
                 .frame(width: 16, alignment: .trailing)   // wider hit area than the visible thumb
@@ -48,7 +48,7 @@ private struct NeutralScrollIndicator: ViewModifier {
                         }
                         .onEnded { _ in dragStartOffset = nil }
                 )
-                .animation(.easeOut(duration: 0.12), value: active)
+                .animation(Motion.safe(.easeOut(duration: 0.12)), value: active)
                 .accessibilityHidden(true)
         }
     }

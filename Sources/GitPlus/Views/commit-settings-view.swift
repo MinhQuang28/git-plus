@@ -27,7 +27,7 @@ struct CommitSettingsView: View {
                 Text("Default commit message")
             } footer: {
                 Text("Prefilled into the commit box when it opens and after each commit. Leave empty for a blank box.")
-                    .appFont(.caption).foregroundStyle(.secondary)
+                    .appFont(.subheadline).foregroundStyle(.secondary)
             }
             if !summary.isEmpty || !details.isEmpty {
                 Button("Clear Default Message", role: .destructive) { summary = ""; details = "" }

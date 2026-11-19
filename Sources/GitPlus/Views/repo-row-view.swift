@@ -1,46 +1,31 @@
+import AppKit
 import SwiftUI
-
-/// Compact repo summary: name, branch, ahead/behind, dirty marker.
-struct RepoRowView: View {
-    let repo: RepoEntry
-    let status: RepoStatus?
-    let isBusy: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ProviderIcon(provider: status?.remote?.provider)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(repo.name).lineLimit(1)
-                if let status {
-                    Text(status.branch).appFont(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 4)
-            if isBusy {
-                ProgressView().controlSize(.small)
-            } else if let status {
-                SyncBadge(status: status)
-            }
-        }
-    }
-}
 
 struct SyncBadge: View {
     let status: RepoStatus
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             if status.operation != nil || status.conflicts > 0 {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(Theme.conflict)
                     .help(status.operation.map { "\($0.title) in progress" } ?? "Conflicts")
             }
-            if status.behind > 0 { Text("↓\(status.behind)").foregroundStyle(Theme.behind) }
-            if status.ahead > 0 { Text("↑\(status.ahead)").foregroundStyle(Theme.ahead) }
+            // The arrows carry the meaning; neutral text keeps orange for conflicts only (GitHub Desktop does the same).
+            if status.behind > 0 {
+                Text("↓\(status.behind)").foregroundStyle(.secondary).help("\(status.behind) commit\(status.behind == 1 ? "" : "s") to pull")
+            }
+            if status.ahead > 0 {
+                Text("↑\(status.ahead)").foregroundStyle(.secondary).help("\(status.ahead) commit\(status.ahead == 1 ? "" : "s") to push")
+            }
             if status.changedFiles > 0 {
-                Circle().fill(Theme.modified).frame(width: 7, height: 7).help("\(status.changedFiles) uncommitted change(s)")
+                HStack(spacing: 3) {
+                    Circle().fill(Theme.modified).frame(width: 7, height: 7)
+                    Text("\(status.changedFiles)").foregroundStyle(.secondary)
+                }
+                .help(status.changedFiles == 1 ? "1 changed file" : "\(status.changedFiles) changed files")
             }
         }
-        .appFont(.caption, monospacedDigit: true)
+        .appFont(.callout, monospacedDigit: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(spokenSummary)
     }
@@ -109,9 +94,18 @@ struct RepoContextMenu: View {
             Button("Open on Web") { NSWorkspace.shared.open(web) }
         }
         Divider()
-        Button("Remove from Git Plus", role: .destructive) {
-            if selection == .repo(repo.id) { selection = nil }
-            store.remove(repoIDs: [repo.id])
+        Button("Remove from Git Plus…", role: .destructive) {
+            let alert = NSAlert()
+            alert.messageText = "Remove “\(repo.name)” from Git Plus?"
+            alert.informativeText = "The repository stays on disk; you can add it again later. Its group and pin are forgotten."
+            alert.addButton(withTitle: "Remove")
+            alert.addButton(withTitle: "Cancel")
+            alert.buttons.first?.hasDestructiveAction = true
+            Task {
+                guard await WindowAlert.run(alert) == .alertFirstButtonReturn else { return }
+                if selection == .repo(repo.id) { selection = nil }
+                store.remove(repoIDs: [repo.id])
+            }
         }
     }
 }

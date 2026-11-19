@@ -73,14 +73,15 @@ struct CommitBoxView: View {
                     .appFont(.callout)
                     .focused($detailsFocused)
                     .scrollContentBackground(.hidden)
+                    .accessibilityLabel("Description")
                     .padding(Spacing.xs)
                 if details.isEmpty {
-                    Text("Description").foregroundStyle(.tertiary).padding(.horizontal, 9).padding(.vertical, Spacing.xs).allowsHitTesting(false)
+                    Text("Description").foregroundStyle(.secondary).padding(.horizontal, 9).padding(.vertical, Spacing.xs).allowsHitTesting(false).accessibilityHidden(true)
                 }
             }
             // One line until it's used, so the file list keeps the space.
             .frame(height: (detailsFocused || !details.isEmpty ? 64 : 30) * scale)
-            .animation(.easeOut(duration: 0.15), value: detailsFocused)
+            .animation(Motion.safe(.easeOut(duration: 0.15)), value: detailsFocused)
             .background(field)
             HStack(spacing: Spacing.s) {
                 Toggle("Amend", isOn: binding(\.amend)).toggleStyle(.checkbox).appFont(.callout)
@@ -105,17 +106,17 @@ struct CommitBoxView: View {
             }
             if lastCommitPushed {
                 Label("The last commit is already pushed — amending requires a force push.", systemImage: "exclamationmark.triangle")
-                    .appFont(.caption).foregroundStyle(Theme.modified)
+                    .appFont(.subheadline).foregroundStyle(Theme.modified)
             }
             HStack(spacing: Spacing.xs) {
                 Button { commit(push: false) } label: {
                     HStack(spacing: Spacing.xs) {
                         if isCommitting { ProgressView().controlSize(.small) }
-                        Text(isCommitting ? AttributedString("Committing…") : buttonTitle).appFont(.body, weight: .semibold)
+                        Text(isCommitting ? "Committing…" : buttonTitle).appFont(.body, weight: .semibold)
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .help(disabledReason ?? "Commit (⌘↩)")
+                .help(disabledReason ?? "\(amend ? "Amend last commit on" : "Commit to") \(branch) (⌘↩)")
                 Menu {
                     Button(pushTitle) { commit(push: true) }
                         .disabled(status?.remote == nil)
@@ -176,11 +177,11 @@ struct CommitBoxView: View {
             .overlay(RoundedRectangle(cornerRadius: Radius.s).stroke(Theme.separator))
     }
 
-    private var buttonTitle: AttributedString {
-        let text = amend ? "Amend last commit on **\(branch)**"
-            : stagesAll ? "Stage all & commit to **\(branch)**"
-            : "Commit \(stagedCount) file\(stagedCount == 1 ? "" : "s") to **\(branch)**"
-        return (try? AttributedString(markdown: text)) ?? AttributedString(text)
+    /// Short enough not to truncate; the branch is in the tooltip and the toolbar.
+    private var buttonTitle: String {
+        amend ? "Amend Last Commit"
+            : stagesAll ? "Stage All & Commit"
+            : "Commit \(stagedCount) File\(stagedCount == 1 ? "" : "s")"
     }
 
     /// Replaces an existing `type:` / `type(scope):` prefix or adds one.

@@ -14,6 +14,7 @@ struct CommitDetailView: View {
     @State private var error: String?
     @State private var showFullMessage = false
     @Environment(\.inspectFile) private var inspectFile
+    @Environment(WorkspaceStore.self) private var store
 
     private var git: GitService { GitService(repo: repoURL) }
 
@@ -29,9 +30,15 @@ struct CommitDetailView: View {
                     if let file = files.first(where: { $0.id == selectedFile }) {
                         FileDiffView(source: .revision(git, target), file: file).id(target.head + file.id)
                     } else if let error {
-                        Text(error).foregroundStyle(.red).padding()
+                        ContentUnavailableView {
+                            Label("Can’t Load Commit", systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(error).textSelection(.enabled)
+                        } actions: {
+                            Button("Try Again") { Task { await load() } }
+                        }
                     } else {
-                        ContentUnavailableView("Select a file", systemImage: "doc.text")
+                        ContentUnavailableView("Select a File", systemImage: "doc.text")
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,13 +50,17 @@ struct CommitDetailView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                Text(commit?.subject ?? target.title).appFont(size: 16, weight: .semibold).lineLimit(1)
+                // The header is the detail view for this commit: wrap and allow copying instead of truncating.
+                Text(commit?.subject ?? target.title).appFont(.title3, weight: .semibold)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
                 if !body_.isEmpty {
+                    let title = showFullMessage ? "Hide Commit Description" : "Show Commit Description"
                     Button { showFullMessage.toggle() } label: {
-                        Image(systemName: showFullMessage ? "chevron.up" : "chevron.down")
+                        Label(title, systemImage: showFullMessage ? "chevron.up" : "chevron.down").labelStyle(.iconOnly)
                     }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
-                    .help("Show commit description")
+                    .help(title)
                 }
                 Spacer()
             }
@@ -75,7 +86,7 @@ struct CommitDetailView: View {
                 Text("+\(add)").foregroundStyle(Theme.added).monospacedDigit()
                 Text("−\(del)").foregroundStyle(Theme.deleted).monospacedDigit()
                 if let url = remote?.commitURL(target.head), commit != nil {
-                    Button { NSWorkspace.shared.open(url) } label: { Label("Open on web", systemImage: "safari").labelStyle(.iconOnly) }
+                    Button { NSWorkspace.shared.open(url) } label: { Label("Open on Web", systemImage: "safari").labelStyle(.iconOnly) }
                         .buttonStyle(.plain).help("View on \(remote?.host ?? "web")")
                 }
             }
@@ -128,5 +139,6 @@ struct CommitDetailView: View {
     private func copy(_ s: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(s, forType: .string)
+        store.showToast("Copied SHA")
     }
 }

@@ -3,15 +3,18 @@ import SwiftUI
 
 /// A fixed-width column with a drag handle. The width is persisted per `storageKey`,
 /// clamped to `range`, and never changes when the column's content changes.
+/// `gap`: the handle is the empty gutter between two `.panel()` blocks instead of a 1 pt divider line.
 struct ResizableColumn<Content: View>: View {
     @AppStorage private var width: Double
     let range: ClosedRange<Double>
+    let gap: Bool
     @ViewBuilder let content: Content
     @State private var dragStart: Double?
 
-    init(_ storageKey: String, initial: Double, range: ClosedRange<Double>, @ViewBuilder content: () -> Content) {
+    init(_ storageKey: String, initial: Double, range: ClosedRange<Double>, gap: Bool = false, @ViewBuilder content: () -> Content) {
         _width = AppStorage(wrappedValue: initial, storageKey)
         self.range = range
+        self.gap = gap
         self.content = content()
     }
 
@@ -19,8 +22,8 @@ struct ResizableColumn<Content: View>: View {
         HStack(spacing: 0) {
             content.frame(width: min(max(width, range.lowerBound), range.upperBound))
             Rectangle()
-                .fill(Theme.separator)
-                .frame(width: 1)
+                .fill(gap ? Color.clear : Theme.separator)
+                .frame(width: gap ? Spacing.s : 1)
                 .overlay {
                     Color.clear
                         .frame(width: 8)
@@ -35,6 +38,14 @@ struct ResizableColumn<Content: View>: View {
                                 }
                                 .onEnded { _ in dragStart = nil }
                         )
+                }
+                // Dragging is not the only way: VoiceOver / Full Keyboard Access can step the width.
+                .accessibilityElement()
+                .accessibilityLabel("Column width")
+                .accessibilityValue("\(Int(width)) points")
+                .accessibilityAdjustableAction { direction in
+                    let step: Double = direction == .increment ? 20 : -20
+                    width = min(max(width + step, range.lowerBound), range.upperBound)
                 }
         }
     }
@@ -121,11 +132,14 @@ struct ToastView: View {
                 .buttonStyle(.borderless)
                 .fontWeight(.semibold)
             }
+            if toast.action != nil || toast.isError {
+                IconButton(symbol: "xmark", help: "Dismiss") { store.dismissToast() }
+            }
         }
         .padding(.horizontal, Spacing.l).padding(.vertical, 10)
         .glassEffect(.regular, in: .capsule)
         .padding(.bottom, 20)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(Motion.slideUp)
     }
 }
 
@@ -171,7 +185,7 @@ struct FailureBanner: View {
         .frame(maxWidth: 560)
         .glassEffect(.regular.tint(Theme.deleted.opacity(0.18)), in: .rect(cornerRadius: Radius.l))
         .padding(.bottom, 20)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(Motion.slideUp)
     }
 
     private var firstLine: String {
@@ -254,11 +268,12 @@ struct OptionChip: View {
             Label(title, systemImage: symbol)
                 .appFont(size: 11, weight: .medium)
                 .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(isOn ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
-                .overlay(Capsule().stroke(isOn ? Color.accentColor.opacity(0.6) : Theme.separator))
-                .foregroundStyle(isOn ? Color.accentColor : .secondary)
+                .background(Capsule().fill(isOn ? Theme.accent.opacity(0.2) : Theme.headerBackground))
+                .overlay(Capsule().stroke(isOn ? Theme.accent.opacity(0.6) : Theme.separator))
+                .foregroundStyle(isOn ? Theme.accent : .secondary)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
 
@@ -322,5 +337,26 @@ struct OpenInMenu: View {
         } icon: {
             if let icon = app.icon { Image(nsImage: icon) } else { Image(systemName: "app") }
         }
+    }
+}
+
+extension View {
+    /// A content block: rounded, outlined surface set apart from its neighbours by the window gutter.
+    func panel() -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.l, style: .continuous)
+        return self
+            .background(Theme.panelBackground)
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(Theme.separator))
+    }
+}
+
+extension View {
+    /// Shared look of the panel filter fields (repository list, changed files): full-width glass capsule.
+    func filterFieldStyle() -> some View {
+        self
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .glassEffect(.regular, in: .capsule)
     }
 }

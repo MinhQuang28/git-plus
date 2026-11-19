@@ -1,12 +1,12 @@
+import AppKit
 import SwiftUI
 
-/// Window root: repository or group workspace. The repository list drops down from the
-/// "Current Repository" header of the left column (no permanent sidebar).
+/// Window root: an always-visible repository list on the left, then the repository or group workspace.
+/// ⌘T focuses the list's filter.
 /// Errors show as a non-blocking banner; ⌘K opens the command palette.
 struct ContentView: View {
     @Environment(WorkspaceStore.self) private var store
     @AppStorage("selection") private var storedSelection = ""
-    @State private var switcher = SwitcherState()
     @State private var showPalette = false
     @State private var showClone = false
     @State private var showActivity = false
@@ -15,10 +15,19 @@ struct ContentView: View {
         Binding(get: { SidebarSelection(rawValue: storedSelection) }, set: { storedSelection = $0?.rawValue ?? "" })
     }
 
+    @State private var clearedLaunchFocus = false
+
     var body: some View {
-        content
+        HStack(spacing: 0) {
+            // Always-visible repository list (compact), then the selected repository or group.
+            ResizableColumn("width.repoList", initial: 230, range: 190...360, gap: true) {
+                RepositoryListPanel().panel()
+            }
+            content.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding([.horizontal, .bottom], Spacing.s)
+        .padding(.top, Spacing.xs)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .environment(switcher)
             .overlay(alignment: .bottom) {
                 VStack(spacing: Spacing.s) {
                     if let failure = store.failure { FailureBanner(failure: failure).id(failure.id) }
@@ -34,10 +43,17 @@ struct ContentView: View {
                     .transition(.opacity)
                 }
             }
-            .animation(.spring(duration: 0.3), value: store.toast)
-            .animation(.spring(duration: 0.3), value: store.failure)
+            .animation(Motion.safe(.spring(duration: 0.3)), value: store.toast)
+            .animation(Motion.safe(.spring(duration: 0.3)), value: store.failure)
             .animation(.easeOut(duration: 0.12), value: showPalette)
             .task { await store.refreshStatus() }
+            // AppKit focuses the first control when the window first becomes key, which draws a ring under Full
+            // Keyboard Access before anyone pressed a key. Start with nothing focused; Tab still enters the first control.
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+                guard !clearedLaunchFocus, let window = note.object as? NSWindow else { return }
+                clearedLaunchFocus = true
+                DispatchQueue.main.async { window.makeFirstResponder(nil) }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showPalette.toggle() }
             .onReceive(NotificationCenter.default.publisher(for: .showClone)) { _ in showClone = true }
             .onReceive(NotificationCenter.default.publisher(for: .showActivity)) { _ in showActivity = true }
@@ -59,12 +75,7 @@ struct ContentView: View {
     }
 
     private var placeholder: some View {
-        HStack(spacing: 0) {
-            ResizableColumn("width.leftPane", initial: 320, range: 260...520) {
-                SwitcherColumn(forceExpanded: true) { EmptyView() }
-            }
-            WelcomeView().frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
+        WelcomeView().frame(maxWidth: .infinity, maxHeight: .infinity).panel()
     }
 }
 
@@ -82,16 +93,10 @@ struct WelcomeView: View {
                      : "Choose a repository or group from the list on the left, or press ⌘K.")
                     .foregroundStyle(.secondary)
             }
-            HStack(spacing: Spacing.m) {
-                card("Add Existing", detail: "A repository or a parent folder to scan", symbol: "plus.rectangle.on.folder", keys: "⌘O") {
-                    RepoActions.addRepositories(store)
-                }
-                card("Clone", detail: "From GitHub, GitLab or any URL", symbol: "square.and.arrow.down", keys: "⇧⌘O") {
-                    RepoActions.post(.showClone)
-                }
-                card("New", detail: "Create an empty repository", symbol: "plus.square", keys: "⌘N") {
-                    RepoActions.newRepository(store)
-                }
+            // Three cards when they fit beside the left column; stacked when the window is narrow or text is large.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.m) { cards }
+                VStack(spacing: Spacing.s) { cards }
             }
             HStack(spacing: Spacing.l) {
                 ForEach(["git", "gh", "glab"], id: \.self) { tool in
@@ -105,9 +110,15 @@ struct WelcomeView: View {
                         Text(tool).appFont(.callout, design: .monospaced)
                     }
                     .help(help(tool))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityValue(help(tool))
                 }
             }
             .appFont(.callout)
+            // Without git nothing works: say how to fix it on screen, not only in a tooltip.
+            if tools["git"] == false {
+                Text(help("git")).appFont(.callout).foregroundStyle(Theme.deleted).textSelection(.enabled)
+            }
         }
         .padding(Spacing.xl)
         .task {
@@ -120,6 +131,18 @@ struct WelcomeView: View {
         case "git": tools["git"] == false ? "git was not found — install the Xcode Command Line Tools (xcode-select --install)" : "git is installed"
         case "gh": tools["gh"] == true ? "GitHub CLI found (pull requests)" : "Optional: brew install gh — enables pull requests"
         default: tools["glab"] == true ? "GitLab CLI found (merge requests)" : "Optional: brew install glab — enables merge requests"
+        }
+    }
+
+    @ViewBuilder private var cards: some View {
+        card("Add Existing", detail: "A repository or a parent folder to scan", symbol: "plus.rectangle.on.folder", keys: "⌘O") {
+            RepoActions.addRepositories(store)
+        }
+        card("Clone", detail: "From GitHub, GitLab or any URL", symbol: "square.and.arrow.down", keys: "⇧⌘O") {
+            RepoActions.post(.showClone)
+        }
+        card("New", detail: "Create an empty repository", symbol: "plus.square", keys: "⌘N") {
+            RepoActions.newRepository(store)
         }
     }
 

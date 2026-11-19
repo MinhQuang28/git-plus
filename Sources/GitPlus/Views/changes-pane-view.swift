@@ -88,9 +88,9 @@ struct ChangesPaneView: View {
                 if !picked.isEmpty { discarding = picked }
             }
             .overlay {
+                // The main pane carries the full empty state; here a quiet line is enough.
                 if tree.isEmpty {
-                    ContentUnavailableView("No local changes", systemImage: "checkmark.seal",
-                                           description: Text("Your working directory is clean."))
+                    Text("No local changes").foregroundStyle(.secondary)
                 }
             }
             Rectangle().fill(Theme.separator).frame(height: 1)
@@ -114,18 +114,15 @@ struct ChangesPaneView: View {
     }
 
     private var filterField: some View {
-        HStack(spacing: Spacing.xs) {
-            Image(systemName: "line.3.horizontal.decrease").foregroundStyle(.secondary)
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
             TextField("Filter changed files", text: $filter).textFieldStyle(.plain)
             if !filter.isEmpty {
                 Button { filter = "" } label: { Label("Clear filter", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }.buttonStyle(.plain).foregroundStyle(.secondary)
             }
         }
-        .appFont(.callout)
-        .padding(.horizontal, Spacing.s).padding(.vertical, 5)
-        .background(Capsule().fill(Theme.headerBackground))
-        .overlay(Capsule().stroke(Theme.separator))
-        .padding(.horizontal, Spacing.s).padding(.top, Spacing.xs)
+        .filterFieldStyle()
+        .padding(.horizontal, 8).padding(.top, 8)   // same inset as the repository filter, so both line up
     }
 
     private var moreMenu: some View {
@@ -230,7 +227,7 @@ struct ChangesPaneView: View {
     }
 }
 
-/// File row: type icon, name over dimmed folder, stage/unstage button on hover, status letter.
+/// File row: type icon, name over dimmed folder, stage/unstage button, status letter.
 struct WorkingFileRow: View {
     let file: ChangedFile
     var showsFolder = true
@@ -247,10 +244,9 @@ struct WorkingFileRow: View {
             if file.additions + file.deletions > 0 {
                 Text("+\(file.additions) −\(file.deletions)").appFont(.caption, monospacedDigit: true).foregroundStyle(.secondary)
             }
-            // Fixed slot: the button fades in/out without shifting the row.
+            // Always there (dimmed until the row is hovered or selected), so staging doesn't have to be discovered.
             IconButton(symbol: icon, help: help, action: toggle)
-                .opacity(showButton ? 1 : 0)
-                .allowsHitTesting(showButton)
+                .opacity(showButton ? 1 : 0.45)
                 .accessibilityHidden(true)
             FileStatusLetter(status: file.status)
         }

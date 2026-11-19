@@ -64,7 +64,6 @@ private struct DiffTextSelectionModifier: ViewModifier {
                 .onChanged(dragChanged)
                 .onEnded(dragEnded))
             .focusable()
-            .focusEffectDisabled()
             .focused($focused)
             .onCopyCommand { selection.map { [NSItemProvider(object: copyText($0) as NSString)] } ?? [] }
             .onCommand(#selector(NSResponder.selectAll(_:))) { selectAll() }

@@ -12,12 +12,13 @@ struct StashListView: View {
                 Text("\(entry.ref) • \(RelativeTime.string(entry.date))").appFont(size: 11).foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
+            .help(entry.message)   // the list cuts long messages at two lines
             .listRowSeparator(.visible)
         }
         .listStyle(.plain)
         .overlay {
             if stashes.isEmpty {
-                ContentUnavailableView("No stashes", systemImage: "tray",
+                ContentUnavailableView("No Stashes", systemImage: "tray",
                                        description: Text("Use “Stash Changes…” in the Changes tab to set work aside."))
             }
         }

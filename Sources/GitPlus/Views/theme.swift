@@ -11,6 +11,14 @@ enum Spacing {
     static let xl: CGFloat = 24
 }
 
+/// Animations that respect System Settings → Accessibility → Reduce motion.
+enum Motion {
+    private static var reduced: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+    static func safe(_ animation: Animation) -> Animation? { reduced ? nil : animation }
+    /// Toasts and banners: slide up, or only fade when motion is reduced.
+    static var slideUp: AnyTransition { reduced ? .opacity : .move(edge: .bottom).combined(with: .opacity) }
+}
+
 enum Radius {
     static let s: CGFloat = 6
     static let m: CGFloat = 10
@@ -27,17 +35,14 @@ enum Theme {
         NSColor(srgbRed: CGFloat((v >> 16) & 0xff) / 255, green: CGFloat((v >> 8) & 0xff) / 255, blue: CGFloat(v & 0xff) / 255, alpha: a)
     }
 
-    static let barBackground = dynamic(light: hex(0xf6f8fa), dark: hex(0x1c2128))
     static let barHover = Color.primary.opacity(0.07)
-    static let barText = Color.primary
-    static let barSecondaryText = Color.secondary
-    static let barDivider = dynamic(light: hex(0xd0d7de), dark: hex(0x30363d))
     static let rowHover = Color.primary.opacity(0.05)
-    static let banner = dynamic(light: hex(0xfff8c5), dark: hex(0x3b2e0a))
     static let bannerBorder = dynamic(light: hex(0xd4a72c), dark: hex(0x9e6a03))
 
     // System colors so panes match the native (Liquid Glass) window chrome.
     static let paneBackground = Color(nsColor: .windowBackgroundColor)
+    /// Fill of a `.panel()` block, a step above the window background.
+    static let panelBackground = Color.primary.opacity(0.025)
     static let headerBackground = Color.primary.opacity(0.045)
     static let separator = Color(nsColor: .separatorColor)
 
@@ -54,8 +59,8 @@ enum Theme {
     static let gutterText = Color.secondary
     static let emptySide = Color.primary.opacity(0.03)
 
-    static let modified = dynamic(light: hex(0xb08800), dark: hex(0xd8b64a))
-    static let added = dynamic(light: hex(0x28a745), dark: hex(0x3fb950))
+    static let modified = dynamic(light: hex(0x9a6700), dark: hex(0xd8b64a))
+    static let added = dynamic(light: hex(0x1a7f37), dark: hex(0x3fb950))
     static let deleted = dynamic(light: hex(0xcb2431), dark: hex(0xf85149))
     static let renamed = dynamic(light: hex(0x0366d6), dark: hex(0x58a6ff))
     static let conflict = dynamic(light: hex(0xbc4c00), dark: hex(0xf0883e))
@@ -72,4 +77,33 @@ enum Theme {
         dynamic(light: hex(0x0a7c86), dark: hex(0x39c5cf)),
     ]
     static func lane(_ index: Int) -> Color { lanes[index % lanes.count] }
+}
+
+/// Settings → Appearance → Theme: follow macOS, or force light / dark for every window, sheet and alert.
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+
+    static let key = "appearance"
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// The saved choice (System when nothing was chosen yet).
+    static var current: AppAppearance {
+        AppAppearance(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system
+    }
+
+    @MainActor func apply() {
+        switch self {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
 }

@@ -6,10 +6,17 @@ struct GitPlusApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = WorkspaceStore()
 
+    init() {
+        // Thin overlay scrollers in this app only, whatever System Settings → Show scroll bars says:
+        // the app domain overrides the global one, and it must be set before the first scroll view exists.
+        UserDefaults.standard.set("WhenScrolling", forKey: "AppleShowScrollBars")
+    }
+
     var body: some Scene {
         WindowGroup("Git Plus") {
             ContentView()
                 .scaledInterfaceText()
+                .appAccentTint()
                 .environment(store)
                 .frame(minWidth: 1000, minHeight: 600)
                 .onAppear { appDelegate.store = store }
@@ -20,7 +27,7 @@ struct GitPlusApp: App {
         }
 
         Settings {
-            SettingsView().scaledInterfaceText()
+            SettingsView().scaledInterfaceText().appAccentTint()
         }
     }
 }
@@ -36,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWindow.allowsAutomaticWindowTabbing = false   // frees ⌘T for the repository list
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+        AppAppearance.current.apply()
         // Also accept folder paths passed as plain arguments: `GitPlus ~/code/foo`.
         let args = CommandLine.arguments.dropFirst().filter { !$0.hasPrefix("-") }
         Task { @MainActor in

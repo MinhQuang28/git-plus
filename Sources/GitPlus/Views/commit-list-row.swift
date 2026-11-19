@@ -26,8 +26,8 @@ struct CommitListRow: View {
                         .labelStyle(.titleAndIcon)
                         .appFont(size: 11, weight: .medium)
                         .padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(Capsule().fill(isTag ? Theme.modified.opacity(0.18) : Color.accentColor.opacity(0.16)))
-                        .foregroundStyle(isTag ? Theme.modified : Color.accentColor)
+                        .background(Capsule().fill(isTag ? Theme.modified.opacity(0.18) : Theme.accent.opacity(0.16)))
+                        .foregroundStyle(isTag ? Theme.modified : Theme.accent)
                         .lineLimit(1)
                 }
             }
@@ -44,9 +44,9 @@ struct CommitListRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 if isHead {
-                    Text("HEAD").appFont(size: 10, weight: .bold).foregroundStyle(Color.accentColor)
+                    Text("HEAD").appFont(size: 10, weight: .bold).foregroundStyle(Theme.accent)
                         .padding(.horizontal, 4).padding(.vertical, 1)
-                        .overlay(Capsule().stroke(Color.accentColor.opacity(0.6)))
+                        .overlay(Capsule().stroke(Theme.accent.opacity(0.6)))
                 }
             }
         }
@@ -79,6 +79,6 @@ struct AvatarView: View {
     private var color: Color {
         // Stable per-email hue.
         let hash = email.lowercased().unicodeScalars.reduce(UInt32(5381)) { ($0 &* 33) &+ $1.value }
-        return Color(hue: Double(hash % 360) / 360, saturation: 0.5, brightness: 0.75)
+        return Color(hue: Double(hash % 360) / 360, saturation: 0.55, brightness: 0.42)   // white initials ≥ 4.5:1 on every hue
     }
 }

@@ -24,7 +24,7 @@ struct AISettingsView: View {
             Section {
                 Toggle("Write commit messages with AI", isOn: $enabled)
                 Text("When you press ✨ (⌥⌘G), the changes being committed are sent to the provider below. Lockfiles, binaries and secret files (.env, *.pem, *.key…) are listed by name only, and known token formats are masked.")
-                    .appFont(.caption).foregroundStyle(.secondary)
+                    .appFont(.subheadline).foregroundStyle(.secondary)
             }
             Section("Provider") {
                 Picker("Provider", selection: $providerRaw) {
@@ -44,11 +44,13 @@ struct AISettingsView: View {
                 HStack {
                     Button("Test Connection", action: test).disabled(working || !hasKey || baseURL == nil || model.isEmpty)
                     if working { ProgressView().controlSize(.small) }
-                    if let result {
-                        Label(result.message, systemImage: result.ok ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(result.ok ? Theme.added : Theme.deleted)
-                            .appFont(.caption).lineLimit(3).textSelection(.enabled)
-                    }
+                }
+                // Own row, full width and unclipped: provider errors carry the recovery step at the end.
+                if let result {
+                    Label(result.message, systemImage: result.ok ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(result.ok ? Theme.added : Theme.deleted)
+                        .appFont(.subheadline).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Section("Message") {
@@ -56,8 +58,8 @@ struct AISettingsView: View {
                     ForEach(AIMessageLanguage.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 Toggle("Add a description body", isOn: $includeBody)
-                Text("To keep a repository's code on this Mac, right-click it in the sidebar and turn off “Allow AI Commit Messages”.")
-                    .appFont(.caption).foregroundStyle(.secondary)
+                Text("To keep a repository’s code on this Mac, Control-click it in the repository list (⌘T) and turn off “Allow AI Commit Messages”.")
+                    .appFont(.subheadline).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -77,7 +79,7 @@ struct AISettingsView: View {
                 Spacer()
                 Button("Remove", role: .destructive) { save("") }
             } else {
-                SecureField("", text: $keyInput, prompt: Text("Paste your \(provider.title) API key"))
+                SecureField("API key", text: $keyInput, prompt: Text("Paste your \(provider.title) API key"))
                     .onSubmit { save(keyInput) }
                 Button("Save") { save(keyInput) }.disabled(keyInput.trimmingCharacters(in: .whitespaces).isEmpty)
             }
@@ -91,7 +93,7 @@ struct AISettingsView: View {
 
     @ViewBuilder private var modelField: some View {
         HStack {
-            TextField("", text: $model, prompt: Text(provider.defaultModel.isEmpty ? "model id" : provider.defaultModel))
+            TextField("Model", text: $model, prompt: Text(provider.defaultModel.isEmpty ? "model id" : provider.defaultModel))
             Menu {
                 if models.isEmpty { Text("Press “Load Models” first") }
                 ForEach(models, id: \.self) { m in Button(m) { model = m } }

@@ -57,6 +57,7 @@ enum RepoActions {
     static func undoLastCommit(_ store: WorkspaceStore, _ id: UUID) {
         // Undoing a pushed commit only removes it locally: the branch falls behind its upstream and the
         // next pull brings the commit straight back. Say so before doing it (GitHub Desktop refuses outright).
+        var warning: NSAlert?
         if let status = store.statuses[id], status.upstream != nil, status.ahead == 0 {
             let alert = NSAlert()
             alert.messageText = "The last commit is already pushed"
@@ -67,9 +68,12 @@ enum RepoActions {
             alert.addButton(withTitle: "Undo Locally")
             alert.addButton(withTitle: "Cancel")
             alert.buttons.first?.hasDestructiveAction = true
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            warning = alert
         }
-        Task { await store.perform(id, "undo commit", success: "Undid last commit — its changes are staged") { try await $0.undoLastCommit() } }
+        Task {
+            if let warning { guard await WindowAlert.run(warning) == .alertFirstButtonReturn else { return } }
+            await store.perform(id, "undo commit", success: "Undid last commit — its changes are staged") { try await $0.undoLastCommit() }
+        }
     }
 }
 
@@ -97,7 +101,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut("a", modifiers: [.command, .option])
         }
         CommandMenu("Repository") {
-            Button("Show Repository List") { RepoActions.post(.showRepositoryPicker) }
+            Button("Find Repository") { RepoActions.post(.showRepositoryPicker) }
                 .keyboardShortcut("t")
             Button("Show Branch List") { RepoActions.post(.showBranchPicker) }
                 .keyboardShortcut("b")
@@ -163,6 +167,15 @@ struct AppCommands: Commands {
     @MainActor private func confirmForcePush(_ id: UUID) { ForcePushConfirmation.run(store, id) }
 }
 
+/// Shows an alert as a sheet on the window, like the SwiftUI confirmation dialogs (not a separate modal window).
+@MainActor
+enum WindowAlert {
+    static func run(_ alert: NSAlert) async -> NSApplication.ModalResponse {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return alert.runModal() }
+        return await alert.beginSheetModal(for: window)
+    }
+}
+
 /// "Force push?" confirmation, shared by the menu, the sync button and the command palette.
 @MainActor
 enum ForcePushConfirmation {
@@ -176,7 +189,9 @@ enum ForcePushConfirmation {
         alert.addButton(withTitle: "Force Push")
         alert.addButton(withTitle: "Cancel")
         alert.buttons.first?.hasDestructiveAction = true
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        Task { await store.push(id, force: true) }
+        Task {
+            guard await WindowAlert.run(alert) == .alertFirstButtonReturn else { return }
+            await store.push(id, force: true)
+        }
     }
 }

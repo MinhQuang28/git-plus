@@ -52,17 +52,18 @@ struct GroupDashboardView: View {
                             }
                             .appFont(.callout, weight: .medium)
                             .padding(.horizontal, 10).padding(.vertical, Spacing.xs)
-                            .background(Capsule().fill(filter == f ? Color.accentColor.opacity(0.2) : Theme.headerBackground))
-                            .overlay(Capsule().stroke(filter == f ? Color.accentColor.opacity(0.6) : Theme.separator))
-                            .foregroundStyle(filter == f ? Color.accentColor : .primary)
+                            .background(Capsule().fill(filter == f ? Theme.accent.opacity(0.2) : Theme.headerBackground))
+                            .overlay(Capsule().stroke(filter == f ? Theme.accent.opacity(0.6) : Theme.separator))
+                            .foregroundStyle(filter == f ? Theme.accent : .primary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityAddTraits(filter == f ? .isSelected : [])
                     }
                 }
                 Spacer()
-                Picker("", selection: $grid) {
-                    Image(systemName: "square.grid.2x2").help("Cards").tag(true)
-                    Image(systemName: "list.bullet").help("Table").tag(false)
+                Picker("Layout", selection: $grid) {
+                    Label("Cards", systemImage: "square.grid.2x2").labelStyle(.iconOnly).help("Cards").tag(true)
+                    Label("Table", systemImage: "list.bullet").labelStyle(.iconOnly).help("Table").tag(false)
                 }
                 .pickerStyle(.segmented).labelsHidden().fixedSize()
             }
@@ -73,14 +74,21 @@ struct GroupDashboardView: View {
                 ScrollView {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 250, maximum: 360), spacing: Spacing.m)], spacing: Spacing.m) {
                         ForEach(visible) { repo in
-                            RepoCard(repo: repo, sparkline: sparklines[repo.id] ?? Self.emptySparkline)
-                                .onTapGesture { selection = .repo(repo.id) }
-                                .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
+                            // A real button: focusable and operable from the keyboard and VoiceOver.
+                            Button { selection = .repo(repo.id) } label: {
+                                RepoCard(repo: repo, sparkline: sparklines[repo.id] ?? Self.emptySparkline)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu { RepoContextMenu(repo: repo, selection: $selection) }
                         }
                     }
                     .padding(Spacing.m)
                 }
-                .overlay { if visible.isEmpty { ContentUnavailableView("Nothing Here", systemImage: "line.3.horizontal.decrease.circle") } }
+                .overlay { if visible.isEmpty { ContentUnavailableView {
+                    Label("No \(filter.rawValue) Repositories", systemImage: "line.3.horizontal.decrease.circle")
+                } actions: {
+                    Button("Show All") { filter = .all }
+                } } }
             } else {
                 GroupDashboardTable(repos: visible, selection: $selection)
             }
@@ -108,7 +116,6 @@ struct RepoCard: View {
     @Environment(WorkspaceStore.self) private var store
     let repo: RepoEntry
     let sparkline: [Int]
-    @State private var hovering = false
 
     var body: some View {
         let status = store.statuses[repo.id]
@@ -125,8 +132,8 @@ struct RepoCard: View {
             HStack(spacing: Spacing.xs) {
                 if let s = status {
                     if let op = s.operation { StatusPill(text: op.title, symbol: "exclamationmark.triangle.fill", tint: Theme.conflict) }
-                    if s.ahead > 0 { StatusPill(text: "↑\(s.ahead)", tint: Theme.ahead) }
-                    if s.behind > 0 { StatusPill(text: "↓\(s.behind)", tint: Theme.behind) }
+                    if s.ahead > 0 { StatusPill(text: "↑\(s.ahead)") }
+                    if s.behind > 0 { StatusPill(text: "↓\(s.behind)") }
                     if s.changedFiles > 0 { StatusPill(text: "\(s.changedFiles) changed", tint: Theme.modified) }
                     if s.upstream == nil { StatusPill(text: s.remote == nil ? "no remote" : "unpublished", symbol: "icloud.slash") }
                     if s.changedFiles == 0 && s.ahead == 0 && s.behind == 0 && s.upstream != nil {
@@ -145,12 +152,9 @@ struct RepoCard: View {
         }
         .padding(Spacing.m)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: Radius.l))
-        .overlay(RoundedRectangle(cornerRadius: Radius.l).stroke(hovering ? Color.accentColor.opacity(0.5) : .clear))
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
         .help(repo.path)
         .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -163,7 +167,7 @@ struct Sparkline: View {
         HStack(alignment: .bottom, spacing: 2) {
             ForEach(Array(values.enumerated()), id: \.offset) { _, v in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(v == 0 ? Theme.separator : Color.accentColor.opacity(0.75))
+                    .fill(v == 0 ? Theme.separator : Theme.accent.opacity(0.75))
                     .frame(width: 5, height: max(2, 22 * CGFloat(v) / CGFloat(peak)))
             }
         }

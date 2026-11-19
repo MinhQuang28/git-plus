@@ -63,13 +63,15 @@ final class WorkspaceStore {
     }
     private(set) var toast: Toast?
 
-    /// Shows a short confirmation that disappears after a few seconds (longer when it offers an action).
+    /// Shows a short confirmation that disappears after a few seconds. A toast with an action (Undo) or an error
+    /// stays until it is dismissed or replaced, so the action never times out before it can be reached.
     func showToast(_ message: String, isError: Bool = false, actionTitle: String? = nil, action: (@MainActor () -> Void)? = nil) {
         let t = Toast(message: message, isError: isError, actionTitle: actionTitle, action: action)
         toast = t
         AccessibilityNotification.Announcement(message).post()
+        guard action == nil, !isError else { return }
         Task {
-            try? await Task.sleep(for: .seconds(action == nil ? 3 : 7))
+            try? await Task.sleep(for: .seconds(3))
             if toast?.id == t.id { toast = nil }
         }
     }
@@ -262,7 +264,12 @@ final class WorkspaceStore {
 
     private func report(_ title: String, _ error: Error, repoID: UUID?) {
         let detail = error.localizedDescription
-        failure = Failure(title: title, detail: detail, repoID: repoID, hint: GitErrorHint.classify(detail))
+        let failure = Failure(title: title, detail: detail, repoID: repoID, hint: GitErrorHint.classify(detail))
+        self.failure = failure
+        // The banner doesn't take focus; speak it so VoiceOver users learn the operation failed.
+        var announcement = AttributedString("\(title). \(failure.hint?.explanation ?? detail)")
+        announcement.accessibilitySpeechAnnouncementPriority = .high
+        AccessibilityNotification.Announcement(announcement).post()
     }
 
     /// Runs one user-triggered git mutation, reports failures, refreshes status. Returns success.

@@ -27,15 +27,22 @@ struct GeneralSettingsView: View {
     @AppStorage("diffIgnoreWhitespace") private var ignoreWhitespace = false
     @AppStorage("historyGraph") private var historyGraph = false
     @AppStorage(UITextScale.key) private var textScale = UITextScale.standard.rawValue
+    @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system
 
     var body: some View {
         Form {
             Section("Appearance") {
+                Picker("Theme", selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: appearance) { _, choice in choice.apply() }
+                AccentPicker()
                 Picker("Text size", selection: $textScale) {
                     ForEach(UITextScale.allCases) { Text($0.title).tag($0.rawValue) }
                 }
                 Text("Applies to lists, the commit box and toolbars. ⌃⌘= / ⌃⌘- change it from anywhere; diff text has its own size below.")
-                    .appFont(.caption).foregroundStyle(.secondary)
+                    .appFont(.subheadline).foregroundStyle(.secondary)
             }
             Section("Integrations") {
                 Picker("Editor", selection: $preferredEditor) {
@@ -53,7 +60,7 @@ struct GeneralSettingsView: View {
                     ForEach(PullMode.allCases, id: \.self) { Text($0.title).tag($0.rawValue) }
                 }
                 Text("Used by Pull and Pull All. When a branch has diverged, Git Plus always asks how to combine it.")
-                    .appFont(.caption).foregroundStyle(.secondary)
+                    .appFont(.subheadline).foregroundStyle(.secondary)
             }
             Section("Diff") {
                 Picker("Layout", selection: $mode) {
@@ -64,7 +71,7 @@ struct GeneralSettingsView: View {
                 Toggle("Show the commit graph in History", isOn: $historyGraph)
                 LabeledContent("Diff text size") {
                     HStack {
-                        Slider(value: $fontSize, in: 9...22, step: 0.5).frame(width: 180)
+                        Slider(value: $fontSize, in: 9...22, step: 0.5) { Text("Diff text size") }.labelsHidden().frame(width: 180)
                         Text(String(format: "%.1f pt", fontSize)).monospacedDigit().frame(width: 52, alignment: .trailing)
                     }
                 }
@@ -89,7 +96,7 @@ struct AccountsSettingsView: View {
                     } else {
                         ProgressView().controlSize(.small)
                     }
-                    Text("Run `\(cli) auth login` in Terminal to sign in.").appFont(.caption).foregroundStyle(.secondary)
+                    Text("Run `\(cli) auth login` in Terminal to sign in.").appFont(.subheadline).foregroundStyle(.secondary)
                 }
             }
         }

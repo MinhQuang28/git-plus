@@ -60,6 +60,7 @@ struct FileDiffView: View {
     @State private var styles: [Int: AttributedString] = [:]
     @State private var truncated = false
     @State private var error: String?
+    @State private var retryCount = 0
     @State private var isLoading = true
     @State private var selected = Set<Int>()
     @State private var anchor: Int?
@@ -100,7 +101,7 @@ struct FileDiffView: View {
             }
         }
         .background { currentHunkShortcuts }
-        .task(id: "\(fullContext)|\(syntaxHighlight)|\(ignoreWhitespace)|\(reloadKey)") { await load() }
+        .task(id: "\(fullContext)|\(syntaxHighlight)|\(ignoreWhitespace)|\(reloadKey)|\(retryCount)") { await load() }
         // Row positions change with the layout; stale ones would point drags at the wrong rows.
         .onChange(of: mode) { rowFrames.reset(); copySelection = nil }
         .onChange(of: fontSize) { rowFrames.reset() }
@@ -125,13 +126,19 @@ struct FileDiffView: View {
 
     @ViewBuilder private var content: some View {
         if let error {
-            Text(error).foregroundStyle(.red).padding().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            ContentUnavailableView {
+                Label("Can’t Load Diff", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(error).textSelection(.enabled)
+            } actions: {
+                Button("Try Again") { retryCount += 1 }
+            }
         } else if isLoading && lines.isEmpty {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if isImage && !lines.contains(where: { $0.kind != .meta }) {
             ImageDiffView(source: source, file: file)
         } else if lines.isEmpty {
-            ContentUnavailableView(ignoreWhitespace ? "Only whitespace changed" : "No textual changes", systemImage: "equal.square",
+            ContentUnavailableView(ignoreWhitespace ? "Only Whitespace Changed" : "No Textual Changes", systemImage: "equal.square",
                                    description: Text(ignoreWhitespace ? "Turn off “Ignore Whitespace” to see the changes." : "Binary file or mode change only."))
         } else {
             ScrollViewReader { proxy in
@@ -180,7 +187,7 @@ struct FileDiffView: View {
                 }
                 .neutralScrollIndicator()   // gray thumb drawn over the marker strip
                 .onChange(of: scrollTarget) { _, id in
-                    if let id { withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .top) } }
+                    if let id { withAnimation(Motion.safe(.easeOut(duration: 0.2))) { proxy.scrollTo(id, anchor: .top) } }
                 }
             }
         }
@@ -377,7 +384,9 @@ struct ImageDiffView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: Radius.m).fill(Theme.gutter)
                 if let image {
-                    Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit).padding(Spacing.m)
+                    Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                        .overlay(Rectangle().strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))   // shows the image's real edge
+                        .padding(Spacing.m)
                 } else if loaded {
                     Text("No image").foregroundStyle(.secondary)
                 } else {

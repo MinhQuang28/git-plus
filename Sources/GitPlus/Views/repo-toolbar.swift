@@ -25,7 +25,7 @@ struct RepoToolbar: ToolbarContent {
         ToolbarItem(placement: .navigation) {
             Picker("View", selection: $tab) {
                 ForEach(RepoTab.allCases, id: \.self) { t in
-                    Text(label(t)).tag(t)
+                    Text(label(t)).monospacedDigit().tag(t)
                 }
             }
             .pickerStyle(.segmented)
@@ -168,11 +168,13 @@ enum DivergedPrompt {
         alert.addButton(withTitle: "Pull with Merge")
         alert.addButton(withTitle: "Force Push…")
         alert.addButton(withTitle: "Cancel")
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: Task { await store.pull([id], mode: .rebase) }
-        case .alertSecondButtonReturn: Task { await store.pull([id], mode: .merge) }
-        case .alertThirdButtonReturn: ForcePushConfirmation.run(store, id)
-        default: break
+        Task {
+            switch await WindowAlert.run(alert) {
+            case .alertFirstButtonReturn: await store.pull([id], mode: .rebase)
+            case .alertSecondButtonReturn: await store.pull([id], mode: .merge)
+            case .alertThirdButtonReturn: ForcePushConfirmation.run(store, id)
+            default: break
+            }
         }
     }
 }
@@ -204,4 +206,5 @@ enum RelativeTime {
         if abs(date.timeIntervalSinceNow) < 60 { return "just now" }
         return formatter.localizedString(for: date, relativeTo: .now)
     }
+
 }

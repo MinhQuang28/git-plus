@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Left pane "History" tab: branch compare field + commit list with graph (multi-select → range diff).
+/// Left pane "History" tab: search + view options, commit list with graph (multi-select → range diff); "Compare" opens the branch compare field.
 /// History loads in pages as you scroll; the search box queries git (`author:` and `path:` narrow it down).
 struct HistoryPaneView: View {
     @Environment(WorkspaceStore.self) private var store
@@ -32,6 +32,8 @@ struct HistoryPaneView: View {
     @AppStorage("historyGraph") private var showGraph = false
     @State private var query = ""
     @State private var isSearching = false
+    /// The branch compare field is open (the "Compare" chip).
+    @State private var showCompare = false
 
     private var git: GitService { GitService(repo: repo.url) }
     private var revision: Int { store.revisions[repo.id] ?? 0 }
@@ -41,15 +43,23 @@ struct HistoryPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            compareField
-            Divider()
-            // Suggestions appear only while typing, so an auto-focused field never hides the history.
-            if compareFocused && compareBranch == nil && !compareText.isEmpty {
-                branchSuggestions
-            } else {
-                if let compareBranch { compareTabs(compareBranch) } else { viewOptions }
+            // Search comes first; comparing with a branch is opt-in ("Compare").
+            if let compareBranch {
+                compareField
+                compareTabs(compareBranch)
                 commitList
+            } else {
+                viewOptions.padding(.top, 8)
+                if showCompare {
+                    compareField
+                    branchSuggestions
+                } else {
+                    commitList
+                }
             }
+        }
+        .onChange(of: showCompare) { _, open in
+            if open { DispatchQueue.main.async { compareFocused = true } } else { compareText = "" }
         }
         .task(id: revision) {
             branches = (try? await git.branches()) ?? BranchList()
@@ -74,19 +84,20 @@ struct HistoryPaneView: View {
             if let compareBranch {
                 Text(compareBranch).lineLimit(1)
                 Spacer()
-                Button { self.compareBranch = nil; compareText = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }
+                Button { self.compareBranch = nil; showCompare = false; compareText = "" } label: { Label("Stop comparing", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }
                     .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .help("Stop comparing")
             } else {
-                TextField("Select Branch to Compare…", text: $compareText)
+                TextField("Compare with branch…", text: $compareText)
                     .textFieldStyle(.plain)
                     .focused($compareFocused)
-                    .onExitCommand { compareFocused = false; compareText = "" }
+                    .onExitCommand { showCompare = false }
             }
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: Radius.s).fill(Theme.headerBackground))
         .overlay(RoundedRectangle(cornerRadius: Radius.s).stroke(Theme.separator))
-        .padding(8)
+        .padding(.horizontal, 8).padding(.top, compareBranch == nil ? 0 : 8).padding(.bottom, 8)
     }
 
     private var branchSuggestions: some View {
@@ -118,27 +129,31 @@ struct HistoryPaneView: View {
         .help(side == .behind ? "Commits in \(branch) not in your branch" : "Commits in your branch not in \(branch)")
     }
 
+    /// Search on its own full-width row; the view options on the row below.
     private var viewOptions: some View {
-        HStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
                 if isSearching {
                     ProgressView().controlSize(.mini)
                 } else {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary).appFont(.caption)
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 }
-                TextField("Search  ·  author:name  path:dir/", text: $query).textFieldStyle(.plain).appFont(.callout)
+                TextField("Search  ·  author:name  path:dir/", text: $query).textFieldStyle(.plain)
                     .help("Searches commit messages and authors (or a SHA). Add author:… or path:… to narrow it down.")
                 if !query.isEmpty {
                     Button { query = "" } label: { Label("Clear", systemImage: "xmark.circle.fill").labelStyle(.iconOnly) }.buttonStyle(.plain).foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 7).padding(.vertical, 4)
-            .background(Capsule().fill(Theme.headerBackground))
-            .overlay(Capsule().stroke(Theme.separator))
-            OptionChip(title: "All", symbol: "arrow.triangle.branch", isOn: $allBranches)
-                .help("Show commits from all branches")
-            OptionChip(title: "Graph", symbol: "point.3.connected.trianglepath.dotted", isOn: $showGraph)
-                .help("Show the commit graph")
+            .filterFieldStyle()
+            HStack(spacing: 6) {
+                OptionChip(title: "All", symbol: "arrow.triangle.branch", isOn: $allBranches)
+                    .help("Show commits from all branches")
+                OptionChip(title: "Graph", symbol: "point.3.connected.trianglepath.dotted", isOn: $showGraph)
+                    .help("Show the commit graph")
+                OptionChip(title: "Compare", symbol: "arrow.left.arrow.right", isOn: $showCompare)
+                    .help("Compare with another branch: commits you are behind or ahead of it")
+                    .accessibilityLabel("Compare with branch")
+            }
         }
         .padding(.horizontal, 8).padding(.bottom, 6)
     }

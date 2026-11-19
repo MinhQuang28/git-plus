@@ -16,11 +16,15 @@ enum DiffStagingActions {
             alert.addButton(withTitle: "Discard")
             alert.addButton(withTitle: "Cancel")
             alert.buttons.first?.hasDestructiveAction = true
-            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            Task {
+                guard await WindowAlert.run(alert) == .alertFirstButtonReturn,
+                      let patch = PatchBuilder.patch(raw: raw, selected: ids, reverse: true) else { return }
+                store.discardLines(ids.count, path: path, patch: patch, in: repoID)
+            }
+            return
         }
         // Stage applies forward to the index; unstage/discard apply the selection in reverse.
         guard let patch = PatchBuilder.patch(raw: raw, selected: ids, reverse: action != .stage) else { return }
-        if action == .discard { return store.discardLines(ids.count, path: path, patch: patch, in: repoID) }
         // Stage and unstage both work on the index; unstage applies the selection in reverse.
         let lines = "\(ids.count) line\(ids.count == 1 ? "" : "s")"
         let unstage = action == .unstage
@@ -88,13 +92,11 @@ struct DiffHeaderView: View {
     var body: some View {
         HStack(spacing: 8) {
             FileTypeIcon(path: file.path)
-            HStack(spacing: 0) {
-                let dir = (file.path as NSString).deletingLastPathComponent
-                if !dir.isEmpty { Text(dir + "/").foregroundStyle(.secondary) }
-                Text((file.path as NSString).lastPathComponent).fontWeight(.medium)
-                if let old = file.oldPath { Text("  ← \(old)").foregroundStyle(.secondary) }
-            }
-            .lineLimit(1).truncationMode(.head)
+            let dir = (file.path as NSString).deletingLastPathComponent
+            let name = (file.path as NSString).lastPathComponent
+            Text("\(Text(dir.isEmpty ? "" : dir + "/").foregroundStyle(.secondary))\(Text(name).fontWeight(.medium))\(Text(file.oldPath.map { "  ← \($0)" } ?? "").foregroundStyle(.secondary))")
+                .lineLimit(1).truncationMode(.head)
+                .help(file.oldPath.map { "\($0) → \(file.path)" } ?? file.path)
             FileStatusLetter(status: file.status)
             Spacer()
             if ignoreWhitespace {
