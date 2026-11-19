@@ -74,6 +74,7 @@ struct RepositoryListPanel: View {
                     section(.ungrouped, name: "Ungrouped", groupID: nil)
                 }
                 .padding(.bottom, 10)
+                .thinScroller()
             }
             .onChange(of: highlightedID) { _, id in if let id { proxy.scrollTo(id.uuidString) } }
             }

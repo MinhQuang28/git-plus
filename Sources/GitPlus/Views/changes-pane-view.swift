@@ -147,7 +147,7 @@ struct ChangesPaneView: View {
     private func files(_ ids: Set<ChangedFile.ID>) -> [ChangedFile] { tree.all.filter { ids.contains($0.id) } }
 
     private func row(_ file: ChangedFile, showsFolder: Bool) -> some View {
-        WorkingFileRow(file: file, showsFolder: showsFolder) { toggle([file]) }.tag(file.id)
+        WorkingFileRow(file: file, showsFolder: showsFolder) { toggle([file]) }.thinScroller().tag(file.id)
     }
 
     /// Stage ↔ unstage (double-click, Space or the row button). Conflicted files open the resolver.
